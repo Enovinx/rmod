@@ -64,49 +64,57 @@ interface Settings {
     hasCompletedSetup: boolean
 }
 
-const store = new Store<{
+let store: Store<{
     projects: Project[]
     chats: Chat[]
     checkpoints: Checkpoint[]
     settings: Settings
-}>({
-    defaults: {
-        projects: [],
-        chats: [],
-        checkpoints: [],
-        settings: {
-            openRouterKey: '',
-            activeModelPreset: 'default',
-            modelPresets: [
-                {
-                    id: 'default',
-                    name: 'Default (Claude 3.5 Sonnet)',
-                    modelId: 'anthropic/claude-3.5-sonnet',
-                    temperature: 0.7,
-                    maxTokens: 4096
-                },
-                {
-                    id: 'fast',
-                    name: 'Fast (Claude 3 Haiku)',
-                    modelId: 'anthropic/claude-3-haiku',
-                    temperature: 0.7,
-                    maxTokens: 4096
-                },
-                {
-                    id: 'powerful',
-                    name: 'Powerful (Claude 3 Opus)',
-                    modelId: 'anthropic/claude-3-opus',
-                    temperature: 0.7,
-                    maxTokens: 4096
-                }
-            ],
-            theme: 'dark',
-            hasCompletedSetup: false
-        }
-    }
-})
+}>
 
 export function registerIpcHandlers(): void {
+    store = new Store<{
+        projects: Project[]
+        chats: Chat[]
+        checkpoints: Checkpoint[]
+        settings: Settings
+    }>({
+        defaults: {
+            projects: [],
+            chats: [],
+            checkpoints: [],
+            settings: {
+                openRouterKey: '',
+                activeModelPreset: 'default',
+                modelPresets: [
+                    {
+                        id: 'default',
+                        name: 'Default (Claude 3.5 Sonnet)',
+                        modelId: 'anthropic/claude-3.5-sonnet',
+                        temperature: 0.7,
+                        maxTokens: 4096
+                    },
+                    {
+                        id: 'fast',
+                        name: 'Fast (Claude 3 Haiku)',
+                        modelId: 'anthropic/claude-3-haiku',
+                        temperature: 0.7,
+                        maxTokens: 4096
+                    },
+                    {
+                        id: 'powerful',
+                        name: 'Powerful (Claude 3 Opus)',
+                        modelId: 'anthropic/claude-3-opus',
+                        temperature: 0.7,
+                        maxTokens: 4096
+                    }
+                ],
+                theme: 'dark',
+                hasCompletedSetup: false
+            }
+        }
+    })
+
+    console.log('Store initialized at:', store.path)
     // File operations
     ipcMain.handle('file:read', async (_, filePath: string) => {
         try {
@@ -450,5 +458,11 @@ export function registerIpcHandlers(): void {
     // App info
     ipcMain.handle('app:getPath', (_, name: 'userData' | 'home' | 'temp') => {
         return app.getPath(name)
+    })
+
+    ipcMain.handle('app:wipeData', () => {
+        store.clear()
+        app.relaunch()
+        app.exit()
     })
 }

@@ -21,6 +21,8 @@ You have access to tools to:
 - Search for files or content
 - List directory contents
 
+MAKE SURE TO USE THE TOOLS WHEN NEEDED
+
 When the user asks you to do something:
 1. First understand what they want
 2. Use the appropriate tools to accomplish the task
@@ -98,8 +100,8 @@ export async function runAgent(options: AgentOptions): Promise<void> {
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${settings.openRouterKey}`,
-                    'HTTP-Referer': 'https://roblox-vibe-code.app',
-                    'X-Title': 'Roblox Vibe Code'
+                    'HTTP-Referer': 'https://rmod.app',
+                    'X-Title': 'RMod'
                 },
                 body: JSON.stringify({
                     model: preset.modelId,

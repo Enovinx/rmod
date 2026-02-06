@@ -189,9 +189,27 @@ export default function SettingsPanel({ settings, onChange, onClose }: SettingsP
                     <section className="settings-section">
                         <h3>About</h3>
                         <p className="text-secondary text-sm">
-                            Roblox Vibe Code v1.0.0<br />
+                            RMod v1.0.0<br />
                             AI-powered coding assistant for Roblox development
                         </p>
+                    </section>
+
+                    {/* Danger Zone */}
+                    <section className="settings-section">
+                        <h3 className="text-danger">Danger Zone</h3>
+                        <p className="text-secondary text-sm mb-2">
+                            Resetting the application will wipe all projects, chats, and settings. This cannot be undone.
+                        </p>
+                        <button
+                            className="btn btn-danger btn-sm"
+                            onClick={() => {
+                                if (confirm('Are you sure you want to wipe all data and reset RMod? This cannot be undone.')) {
+                                    window.api.app.wipeData()
+                                }
+                            }}
+                        >
+                            Wipe RMod Data
+                        </button>
                     </section>
                 </div>
             </div>
