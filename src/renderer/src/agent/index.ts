@@ -108,6 +108,7 @@ export async function runAgent(options: AgentOptions): Promise<void> {
                     messages,
                     tools,
                     tool_choice: 'auto',
+                    include_reasoning: true,
                     temperature: preset.temperature,
                     max_tokens: preset.maxTokens
                 })
@@ -121,6 +122,10 @@ export async function runAgent(options: AgentOptions): Promise<void> {
             const data = await response.json()
             const choice = data.choices[0]
             const assistantMessage = choice.message
+            const reasoning =
+                typeof assistantMessage.reasoning === 'string'
+                    ? assistantMessage.reasoning
+                    : undefined
 
             // Check if there are tool calls
             if (assistantMessage.tool_calls && assistantMessage.tool_calls.length > 0) {
@@ -134,6 +139,7 @@ export async function runAgent(options: AgentOptions): Promise<void> {
                 const savedMsg = await window.api.chats.addMessage(chatId, {
                     role: 'assistant',
                     content: assistantMessage.content || '',
+                    reasoning,
                     toolCalls
                 })
                 if (savedMsg) onMessageAdded(savedMsg)
@@ -179,7 +185,8 @@ export async function runAgent(options: AgentOptions): Promise<void> {
                 // No tool calls - agent is done
                 const finalMsg = await window.api.chats.addMessage(chatId, {
                     role: 'assistant',
-                    content: assistantMessage.content || ''
+                    content: assistantMessage.content || '',
+                    reasoning
                 })
                 if (finalMsg) onMessageAdded(finalMsg)
 
