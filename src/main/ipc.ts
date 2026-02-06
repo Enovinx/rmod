@@ -24,6 +24,7 @@ interface Message {
     id: string
     role: 'user' | 'assistant' | 'system' | 'tool'
     content: string
+    reasoning?: string
     toolCalls?: ToolCall[]
     toolResults?: ToolResult[]
     timestamp: string

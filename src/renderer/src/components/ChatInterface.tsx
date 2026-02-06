@@ -206,9 +206,18 @@ export default function ChatInterface({
                     </div>
                 ) : (
                     <>
-                        {chat.messages.map((message, index) => (
-                            <MessageBubble key={message.id || index} message={message} />
-                        ))}
+                        {chat.messages.map((message, index) => {
+                            const previous = chat.messages[index - 1]
+                            const showAvatar = message.role === 'assistant'
+                                && (!previous || previous.role !== 'assistant')
+                            return (
+                                <MessageBubble
+                                    key={message.id || index}
+                                    message={message}
+                                    showAvatar={showAvatar}
+                                />
+                            )
+                        })}
                     </>
                 )}
 
@@ -224,7 +233,7 @@ export default function ChatInterface({
 
             {/* Input */}
             <form className="chat-input-form" onSubmit={handleSubmit}>
-                <div className="chat-input-container">
+                <div className={`chat-input-container ${isRunning ? 'is-disabled' : ''}`}>
                     <textarea
                         ref={textareaRef}
                         className="chat-input"
@@ -233,6 +242,7 @@ export default function ChatInterface({
                         onChange={e => setInput(e.target.value)}
                         onKeyDown={handleKeyDown}
                         rows={1}
+                        disabled={isRunning}
                     />
                     <button
                         type="submit"
