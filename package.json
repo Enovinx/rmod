@@ -19,6 +19,8 @@
     "@electron-toolkit/preload": "^3.0.1",
     "@electron-toolkit/utils": "^3.0.0",
     "electron-store": "^8.2.0",
+    "react-markdown": "^10.1.0",
+    "rehype-highlight": "^7.0.2",
     "uuid": "^9.0.1"
   },
   "devDependencies": {

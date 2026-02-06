@@ -161,7 +161,8 @@ const api = {
     // App utilities
     app: {
         getPath: (name: 'userData' | 'home' | 'temp'): Promise<string> =>
-            ipcRenderer.invoke('app:getPath', name)
+            ipcRenderer.invoke('app:getPath', name),
+        wipeData: (): Promise<void> => ipcRenderer.invoke('app:wipeData')
     }
 }
 

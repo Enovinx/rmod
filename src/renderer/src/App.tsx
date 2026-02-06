@@ -55,7 +55,7 @@ export default function App() {
                     alignItems: 'center',
                     paddingLeft: 'var(--spacing-md)'
                 }}>
-                    <span className="text-sm font-semibold gradient-text no-drag">Roblox Vibe Code</span>
+                    <span className="text-sm font-semibold gradient-text no-drag">RMod</span>
                 </div>
 
                 <div style={{ flex: 1, overflow: 'hidden' }}>
