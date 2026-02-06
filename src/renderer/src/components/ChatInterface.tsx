@@ -43,6 +43,12 @@ export default function ChatInterface({
         }
     }, [input])
 
+    useEffect(() => {
+        if (textareaRef.current && !isRunning) {
+            textareaRef.current.focus()
+        }
+    }, [chat.id, isRunning])
+
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
     }
@@ -110,6 +116,11 @@ export default function ChatInterface({
         }
     }
 
+    const handleSuggestionClick = (text: string) => {
+        setInput(text)
+        requestAnimationFrame(() => textareaRef.current?.focus())
+    }
+
     return (
         <div className="chat-interface">
             {/* Header */}
@@ -172,15 +183,9 @@ export default function ChatInterface({
                     <div className="chat-welcome">
                         <div className="welcome-icon">
                             <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-                                <rect x="4" y="4" width="40" height="40" rx="8" fill="url(#welcomeGradient)" />
-                                <path d="M16 20L24 16L32 20V28L24 32L16 28V20Z" stroke="white" strokeWidth="2" strokeLinejoin="round" />
-                                <path d="M24 16V32" stroke="white" strokeWidth="2" />
-                                <defs>
-                                    <linearGradient id="welcomeGradient" x1="4" y1="4" x2="44" y2="44">
-                                        <stop stopColor="#8b5cf6" />
-                                        <stop offset="1" stopColor="#06b6d4" />
-                                    </linearGradient>
-                                </defs>
+                                <rect x="4" y="4" width="40" height="40" rx="8" stroke="currentColor" strokeWidth="2" />
+                                <path d="M16 20L24 16L32 20V28L24 32L16 28V20Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+                                <path d="M24 16V32" stroke="currentColor" strokeWidth="2" />
                             </svg>
                         </div>
                         <h3>How can I help you code today?</h3>
@@ -188,13 +193,13 @@ export default function ChatInterface({
                             I can read, create, edit, and search files in your project. Just describe what you want to build!
                         </p>
                         <div className="welcome-suggestions">
-                            <button onClick={() => setInput('Show me the structure of this project')}>
+                            <button onClick={() => handleSuggestionClick('Show me the structure of this project')}>
                                 📁 Show project structure
                             </button>
-                            <button onClick={() => setInput('Create a new ModuleScript for handling player data')}>
+                            <button onClick={() => handleSuggestionClick('Create a new ModuleScript for handling player data')}>
                                 ✨ Create a new script
                             </button>
-                            <button onClick={() => setInput('Find all uses of RemoteEvent in the codebase')}>
+                            <button onClick={() => handleSuggestionClick('Find all uses of RemoteEvent in the codebase')}>
                                 🔍 Search the codebase
                             </button>
                         </div>
@@ -227,7 +232,6 @@ export default function ChatInterface({
                         value={input}
                         onChange={e => setInput(e.target.value)}
                         onKeyDown={handleKeyDown}
-                        disabled={isRunning}
                         rows={1}
                     />
                     <button
