@@ -39,7 +39,7 @@
 .orb-3 {
     width: 200px;
     height: 200px;
-    background: #ec4899;
+    background: #bdbdbd;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
@@ -158,10 +158,7 @@
 .onboarding-title {
     font-size: 24px;
     font-weight: 700;
-    background: linear-gradient(135deg, var(--text-primary), var(--text-secondary));
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
+    color: var(--text-primary);
 }
 
 .onboarding-card-content {

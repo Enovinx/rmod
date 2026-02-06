@@ -10,7 +10,7 @@
     align-items: center;
     padding: var(--spacing-md) var(--spacing-lg);
     border-bottom: 1px solid var(--border-subtle);
-    background: var(--bg-secondary);
+    background: var(--bg-primary);
 }
 
 .chat-header-left {
@@ -32,9 +32,9 @@
     align-items: center;
     gap: var(--spacing-sm);
     padding: var(--spacing-sm) var(--spacing-lg);
-    background: rgba(245, 158, 11, 0.1);
-    border-bottom: 1px solid rgba(245, 158, 11, 0.2);
-    color: #f59e0b;
+    background: var(--bg-tertiary);
+    border-bottom: 1px solid var(--border-default);
+    color: var(--text-secondary);
     font-size: 13px;
 }
 
@@ -81,7 +81,7 @@
 
 .welcome-suggestions button {
     padding: var(--spacing-sm) var(--spacing-md);
-    background: var(--bg-secondary);
+    background: var(--bg-primary);
     border: 1px solid var(--border-default);
     border-radius: var(--radius-md);
     color: var(--text-secondary);
@@ -92,7 +92,7 @@
 }
 
 .welcome-suggestions button:hover {
-    background: var(--bg-tertiary);
+    background: var(--bg-hover);
     color: var(--text-primary);
     border-color: var(--border-hover);
 }
@@ -102,7 +102,7 @@
     align-items: center;
     gap: var(--spacing-sm);
     padding: var(--spacing-md);
-    background: var(--bg-tertiary);
+    background: var(--bg-secondary);
     border-radius: var(--radius-md);
     font-size: 13px;
     color: var(--text-secondary);
@@ -111,7 +111,7 @@
 
 .chat-input-form {
     padding: var(--spacing-md) var(--spacing-lg) var(--spacing-lg);
-    background: var(--bg-secondary);
+    background: var(--bg-primary);
     border-top: 1px solid var(--border-subtle);
 }
 
@@ -119,7 +119,7 @@
     display: flex;
     gap: var(--spacing-sm);
     align-items: flex-end;
-    background: var(--bg-tertiary);
+    background: var(--bg-secondary);
     border: 1px solid var(--border-default);
     border-radius: var(--radius-lg);
     padding: var(--spacing-sm);
@@ -128,7 +128,7 @@
 
 .chat-input-container:focus-within {
     border-color: var(--accent-primary);
-    box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.2);
+    box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.1);
 }
 
 .chat-input {
