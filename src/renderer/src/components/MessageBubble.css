@@ -168,12 +168,17 @@
     display: flex;
     flex-direction: column;
     gap: var(--spacing-sm);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-sm);
+    background: color-mix(in srgb, var(--bg-secondary) 75%, transparent);
 }
 
 .tool-call {
     background: var(--bg-secondary);
     border-radius: var(--radius-md);
     overflow: hidden;
+    border: 1px solid var(--border-subtle);
 }
 
 .tool-call-header {
@@ -253,4 +258,35 @@
     color: var(--text-secondary);
     max-height: 150px;
     overflow: auto;
+}
+
+
+.streaming-message .message-content {
+    border-style: dashed;
+    animation: pulse-glow 1.5s ease-in-out infinite;
+}
+
+.tool-call-icons {
+    display: inline-flex;
+    align-items: center;
+    margin-bottom: var(--spacing-sm);
+    padding-left: 2px;
+}
+
+.tool-call-icon {
+    width: 24px;
+    height: 24px;
+    border-radius: 999px;
+    border: 1px solid var(--border-default);
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: -8px;
+    box-shadow: 0 0 0 2px var(--bg-primary);
+}
+
+.tool-call-icon:first-child {
+    margin-left: 0;
 }
