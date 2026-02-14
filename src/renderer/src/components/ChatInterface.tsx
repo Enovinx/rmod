@@ -140,6 +140,28 @@ export default function ChatInterface({
 
         for (const msg of chat.messages) {
             const last = merged[merged.length - 1]
+            const isAssistantMetaOnly =
+                msg.role === 'assistant'
+                && !msg.content?.trim()
+                && !msg.reasoning?.trim()
+                && (Boolean(msg.toolCalls?.length) || Boolean(msg.toolResults?.length))
+
+            const canMergeMetaOnlyIntoPrevious =
+                Boolean(last)
+                && last.role === 'assistant'
+                && !last.content?.trim()
+                && !last.reasoning?.trim()
+                && (Boolean(last.toolCalls?.length) || Boolean(last.toolResults?.length))
+
+            if (isAssistantMetaOnly && canMergeMetaOnlyIntoPrevious && last) {
+                merged[merged.length - 1] = {
+                    ...last,
+                    toolCalls: [...(last.toolCalls || []), ...(msg.toolCalls || [])],
+                    toolResults: [...(last.toolResults || []), ...(msg.toolResults || [])]
+                }
+                continue
+            }
+
             const isToolResultOnlyAssistant =
                 msg.role === 'assistant'
                 && Boolean(msg.toolResults?.length)
@@ -230,7 +252,7 @@ export default function ChatInterface({
 
             {/* Messages */}
             <div className="chat-messages">
-                {chat.messages.length === 0 ? (
+                {displayMessages.length === 0 ? (
                     <div className="chat-welcome">
                         <div className="welcome-icon">
                             <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
@@ -263,7 +285,7 @@ export default function ChatInterface({
                                 && (!previous || previous.role !== 'assistant')
                             return (
                                 <MessageBubble
-                                    key={message.id || index}
+                                    key={message.id || `${message.timestamp}-${index}`}
                                     message={message}
                                     showAvatar={showAvatar}
                                 />
