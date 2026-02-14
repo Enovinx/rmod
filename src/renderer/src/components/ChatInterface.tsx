@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import type { Chat, Project, Settings, Message } from '../types'
 import { runAgent } from '../agent'
 import MessageBubble from './MessageBubble'
@@ -133,6 +133,40 @@ export default function ChatInterface({
         }
     }
 
+
+
+    const displayMessages = useMemo(() => {
+        const merged: Message[] = []
+
+        for (const msg of chat.messages) {
+            const last = merged[merged.length - 1]
+            const isToolResultOnlyAssistant =
+                msg.role === 'assistant'
+                && Boolean(msg.toolResults?.length)
+                && !msg.toolCalls?.length
+                && !msg.content?.trim()
+                && !msg.reasoning?.trim()
+
+            const canMergeIntoPrevious =
+                Boolean(last)
+                && Boolean(last.toolCalls?.length)
+                && !last.toolResults?.length
+                && last.role === 'assistant'
+
+            if (isToolResultOnlyAssistant && canMergeIntoPrevious && last) {
+                merged[merged.length - 1] = {
+                    ...last,
+                    toolResults: msg.toolResults
+                }
+                continue
+            }
+
+            merged.push(msg)
+        }
+
+        return merged
+    }, [chat.messages])
+
     const handleSuggestionClick = (text: string) => {
         setInput(text)
         requestAnimationFrame(() => textareaRef.current?.focus())
@@ -223,8 +257,8 @@ export default function ChatInterface({
                     </div>
                 ) : (
                     <>
-                        {chat.messages.map((message, index) => {
-                            const previous = chat.messages[index - 1]
+                        {displayMessages.map((message, index) => {
+                            const previous = displayMessages[index - 1]
                             const showAvatar = message.role === 'assistant'
                                 && (!previous || previous.role !== 'assistant')
                             return (
