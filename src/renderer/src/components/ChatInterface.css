@@ -2,10 +2,12 @@
     display: flex;
     flex-direction: column;
     height: 100%;
+    background: radial-gradient(circle at top, color-mix(in srgb, var(--accent-primary) 8%, transparent) 0%, transparent 45%);
 }
 
 .chat-header {
     display: flex;
+    backdrop-filter: blur(8px);
     justify-content: space-between;
     align-items: center;
     padding: var(--spacing-md) var(--spacing-lg);
@@ -40,6 +42,7 @@
 
 .chat-messages {
     flex: 1;
+    scroll-behavior: smooth;
     overflow-y: auto;
     padding: var(--spacing-lg);
     display: flex;
@@ -92,6 +95,7 @@
 }
 
 .welcome-suggestions button:hover {
+    transform: translateY(-1px);
     background: var(--bg-hover);
     color: var(--text-primary);
     border-color: var(--border-hover);
@@ -100,6 +104,7 @@
 .agent-status {
     display: flex;
     align-items: center;
+    justify-content: space-between;
     gap: var(--spacing-sm);
     padding: var(--spacing-md);
     background: var(--bg-secondary);
@@ -117,6 +122,7 @@
 
 .chat-input-container {
     display: flex;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
     gap: var(--spacing-sm);
     align-items: flex-end;
     background: var(--bg-secondary);
