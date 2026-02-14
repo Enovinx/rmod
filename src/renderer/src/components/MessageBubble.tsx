@@ -20,18 +20,14 @@ export default function MessageBubble({ message, showAvatar = true }: MessageBub
     const hasText = Boolean(message.content?.trim())
     const hasToolCalls = Boolean(message.toolCalls && message.toolCalls.length > 0)
     const hasToolResults = Boolean(message.toolResults && message.toolResults.length > 0)
-    const shouldCompressAssistantText = !isUser && hasToolCalls && hasText && !message.isStreaming
-    const composedThinking = [
-        message.reasoning?.trim(),
-        shouldCompressAssistantText ? message.content.trim() : ''
-    ].filter(Boolean).join('\n\n')
+    const composedThinking = message.reasoning?.trim() || ''
     const hasThinking = Boolean(composedThinking)
 
     useEffect(() => {
-        if (hasThinking && shouldCompressAssistantText) {
+        if (hasThinking) {
             setShowReasoning(true)
         }
-    }, [hasThinking, shouldCompressAssistantText])
+    }, [hasThinking])
 
     if (isTool) {
         return (
@@ -57,7 +53,7 @@ export default function MessageBubble({ message, showAvatar = true }: MessageBub
                 </div>
             )}
             <div className="message-content">
-                {hasText && !shouldCompressAssistantText && (
+                {hasText && (
                     <div className="message-text">
                         <ReactMarkdown
                             rehypePlugins={[rehypeHighlight]}
