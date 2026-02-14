@@ -9,6 +9,8 @@ interface AgentOptions {
     superAgentMode: boolean
     onStatusUpdate: (status: string) => void
     onMessageAdded: (message: Message) => void
+    onStreamUpdate?: (partialContent: string) => void
+    signal?: AbortSignal
 }
 
 const SYSTEM_PROMPT = `You are an AI coding assistant for Roblox game development. You help users write, edit, and manage Luau code files.
@@ -41,7 +43,7 @@ When you've completed the user's request, provide a summary of what you did.`
 const SUPER_AGENT_SYSTEM_PROMPT = `${SYSTEM_PROMPT}
 
 You are in SUPER AGENT MODE. For complex tasks:
-1. First create a plan with clear steps
+1. First create a plan with clear steps and show it to the user before doing anything else
 2. Execute each step methodically
 3. After each step, verify it worked correctly
 4. If a step fails, try an alternative approach
@@ -55,6 +57,120 @@ Format your plan as:
 
 Then execute each step, marking them as complete.`
 
+const SUPER_AGENT_PLAN_ENFORCER = `In this mode, your first assistant response MUST be a plan for the user and MUST include a markdown section titled exactly "## Plan".
+Do not call tools until after the plan message has been sent.`
+
+interface StreamedAssistantMessage {
+    content: string
+    reasoning?: string
+    tool_calls?: any[]
+}
+
+async function streamChatCompletion(params: {
+    presetModelId: string
+    messages: any[]
+    tools: any[]
+    temperature: number
+    maxTokens: number
+    openRouterKey: string
+    signal?: AbortSignal
+    onToken?: (content: string) => void
+}): Promise<{ message: StreamedAssistantMessage; finishReason?: string }> {
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${params.openRouterKey}`,
+            'HTTP-Referer': 'https://rmod.app',
+            'X-Title': 'RMod'
+        },
+        body: JSON.stringify({
+            model: params.presetModelId,
+            messages: params.messages,
+            tools: params.tools,
+            tool_choice: 'auto',
+            include_reasoning: true,
+            temperature: params.temperature,
+            max_tokens: params.maxTokens,
+            stream: true
+        }),
+        signal: params.signal
+    })
+
+    if (!response.ok) {
+        const error = await response.text()
+        throw new Error(`API error: ${response.status} - ${error}`)
+    }
+
+    if (!response.body) {
+        throw new Error('Streaming unavailable: response body is empty')
+    }
+
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+    let finishReason: string | undefined
+    const assembled: StreamedAssistantMessage = { content: '', tool_calls: [] }
+
+    while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+        const events = buffer.split('\n\n')
+        buffer = events.pop() || ''
+
+        for (const event of events) {
+            const line = event
+                .split('\n')
+                .find((entry) => entry.trim().startsWith('data:'))
+
+            if (!line) continue
+            const data = line.replace(/^data:\s*/, '').trim()
+            if (!data || data === '[DONE]') continue
+
+            let parsed: any
+            try {
+                parsed = JSON.parse(data)
+            } catch {
+                continue
+            }
+
+            const delta = parsed?.choices?.[0]?.delta || {}
+            finishReason = parsed?.choices?.[0]?.finish_reason ?? finishReason
+
+            if (typeof delta.content === 'string' && delta.content.length > 0) {
+                assembled.content += delta.content
+                params.onToken?.(assembled.content)
+            }
+
+            if (typeof delta.reasoning === 'string' && delta.reasoning.length > 0) {
+                assembled.reasoning = (assembled.reasoning || '') + delta.reasoning
+            }
+
+            if (Array.isArray(delta.tool_calls)) {
+                for (const toolCallChunk of delta.tool_calls) {
+                    const idx = toolCallChunk.index ?? 0
+                    if (!assembled.tool_calls![idx]) {
+                        assembled.tool_calls![idx] = {
+                            id: '',
+                            type: 'function',
+                            function: { name: '', arguments: '' }
+                        }
+                    }
+
+                    const target = assembled.tool_calls![idx]
+                    if (toolCallChunk.id) target.id = toolCallChunk.id
+                    if (toolCallChunk.function?.name) target.function.name += toolCallChunk.function.name
+                    if (toolCallChunk.function?.arguments) target.function.arguments += toolCallChunk.function.arguments
+                }
+            }
+        }
+    }
+
+    return { message: assembled, finishReason }
+}
+
 export async function runAgent(options: AgentOptions): Promise<void> {
     const {
         chatId,
@@ -63,7 +179,9 @@ export async function runAgent(options: AgentOptions): Promise<void> {
         settings,
         superAgentMode,
         onStatusUpdate,
-        onMessageAdded
+        onMessageAdded,
+        onStreamUpdate,
+        signal
     } = options
 
     const preset = settings.modelPresets.find(p => p.id === settings.activeModelPreset)
@@ -88,44 +206,43 @@ export async function runAgent(options: AgentOptions): Promise<void> {
     }
 
     let iterations = 0
-    const maxIterations = superAgentMode ? 15 : 8
+    let hasPresentedPlan = false
 
-    while (iterations < maxIterations) {
+    while (true) {
+        if (signal?.aborted) {
+            throw new Error('Request stopped by user.')
+        }
+
         iterations++
         onStatusUpdate(`Thinking... (step ${iterations})`)
 
         try {
-            const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${settings.openRouterKey}`,
-                    'HTTP-Referer': 'https://rmod.app',
-                    'X-Title': 'RMod'
-                },
-                body: JSON.stringify({
-                    model: preset.modelId,
-                    messages,
-                    tools,
-                    tool_choice: 'auto',
-                    include_reasoning: true,
-                    temperature: preset.temperature,
-                    max_tokens: preset.maxTokens
-                })
-            })
-
-            if (!response.ok) {
-                const error = await response.text()
-                throw new Error(`API error: ${response.status} - ${error}`)
+            const callMessages = [...messages]
+            if (superAgentMode && !hasPresentedPlan) {
+                callMessages.push({ role: 'system', content: SUPER_AGENT_PLAN_ENFORCER })
             }
 
-            const data = await response.json()
-            const choice = data.choices[0]
-            const assistantMessage = choice.message
+            const { message: assistantMessage, finishReason } = await streamChatCompletion({
+                presetModelId: preset.modelId,
+                messages: callMessages,
+                tools,
+                temperature: preset.temperature,
+                maxTokens: preset.maxTokens,
+                openRouterKey: settings.openRouterKey,
+                signal,
+                onToken: onStreamUpdate
+            })
             const reasoning =
                 typeof assistantMessage.reasoning === 'string'
                     ? assistantMessage.reasoning
                     : undefined
+
+            if (superAgentMode && !hasPresentedPlan) {
+                const includesPlanHeader = (assistantMessage.content || '').includes('## Plan')
+                if (!assistantMessage.tool_calls?.length && includesPlanHeader) {
+                    hasPresentedPlan = true
+                }
+            }
 
             // Check if there are tool calls
             if (assistantMessage.tool_calls && assistantMessage.tool_calls.length > 0) {
@@ -133,7 +250,13 @@ export async function runAgent(options: AgentOptions): Promise<void> {
                 const toolCalls: ToolCall[] = assistantMessage.tool_calls.map((tc: any) => ({
                     id: tc.id,
                     name: tc.function.name,
-                    arguments: JSON.parse(tc.function.arguments)
+                    arguments: (() => {
+                        try {
+                            return JSON.parse(tc.function.arguments || '{}')
+                        } catch {
+                            return {}
+                        }
+                    })()
                 }))
 
                 const savedMsg = await window.api.chats.addMessage(chatId, {
@@ -195,7 +318,7 @@ export async function runAgent(options: AgentOptions): Promise<void> {
             }
 
             // Check if agent explicitly signals completion
-            if (choice.finish_reason === 'stop' && !assistantMessage.tool_calls) {
+            if (finishReason === 'stop' && !assistantMessage.tool_calls) {
                 onStatusUpdate('Done!')
                 return
             }
@@ -205,11 +328,4 @@ export async function runAgent(options: AgentOptions): Promise<void> {
             throw error
         }
     }
-
-    // Max iterations reached
-    const maxIterMsg = await window.api.chats.addMessage(chatId, {
-        role: 'assistant',
-        content: 'I\'ve reached the maximum number of steps. Let me know if you\'d like me to continue or try a different approach.'
-    })
-    if (maxIterMsg) onMessageAdded(maxIterMsg)
 }
