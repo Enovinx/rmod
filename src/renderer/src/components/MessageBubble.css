@@ -211,6 +211,10 @@
     display: flex;
     flex-direction: column;
     gap: var(--spacing-sm);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-sm);
+    background: color-mix(in srgb, var(--bg-secondary) 75%, transparent);
 }
 
 .tool-result {
@@ -288,5 +292,36 @@
 }
 
 .tool-call-icon:first-child {
+    margin-left: 0;
+}
+
+
+.tool-result-icons {
+    display: inline-flex;
+    align-items: center;
+    margin-bottom: var(--spacing-sm);
+    padding-left: 2px;
+}
+
+.tool-result-icon {
+    width: 24px;
+    height: 24px;
+    border-radius: 999px;
+    border: 1px solid var(--border-default);
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: -8px;
+    box-shadow: 0 0 0 2px var(--bg-primary);
+}
+
+.tool-result-icon.error {
+    color: #ef4444;
+    border-color: color-mix(in srgb, #ef4444 60%, var(--border-default));
+}
+
+.tool-result-icon:first-child {
     margin-left: 0;
 }
