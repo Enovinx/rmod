@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import type { Chat, Project, Settings, Message } from '../types'
 import { runAgent } from '../agent'
 import MessageBubble from './MessageBubble'
@@ -28,6 +28,8 @@ export default function ChatInterface({
     const [currentAction, setCurrentAction] = useState('')
     const [superAgentMode, setSuperAgentMode] = useState(false)
     const [showCheckpoints, setShowCheckpoints] = useState(false)
+    const [streamingContent, setStreamingContent] = useState('')
+    const [abortController, setAbortController] = useState<AbortController | null>(null)
 
     const messagesEndRef = useRef<HTMLDivElement>(null)
     const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -61,6 +63,9 @@ export default function ChatInterface({
         setInput('')
         setIsRunning(true)
         setCurrentAction('Starting...')
+        setStreamingContent('')
+        const controller = new AbortController()
+        setAbortController(controller)
 
         try {
             // Add user message
@@ -85,6 +90,8 @@ export default function ChatInterface({
                 settings,
                 superAgentMode,
                 onStatusUpdate: setCurrentAction,
+                onStreamUpdate: setStreamingContent,
+                signal: controller.signal,
                 onMessageAdded: async (msg) => {
                     const freshChat = await window.api.chats.get(chat.id)
                     if (freshChat) onChatUpdate(freshChat)
@@ -97,16 +104,26 @@ export default function ChatInterface({
 
         } catch (error) {
             console.error('Agent error:', error)
+            const message = error instanceof Error ? error.message : 'Unknown error occurred'
             await window.api.chats.addMessage(chat.id, {
                 role: 'assistant',
-                content: `Error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`
+                content: message === 'Request stopped by user.'
+                    ? 'Stopped. I paused the response as requested.'
+                    : `Error: ${message}`
             })
             const errorChat = await window.api.chats.get(chat.id)
             if (errorChat) onChatUpdate(errorChat)
         } finally {
             setIsRunning(false)
             setCurrentAction('')
+            setStreamingContent('')
+            setAbortController(null)
         }
+    }
+
+    const handleStop = () => {
+        abortController?.abort()
+        setCurrentAction('Stopping...')
     }
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -115,6 +132,40 @@ export default function ChatInterface({
             handleSubmit(e)
         }
     }
+
+
+
+    const displayMessages = useMemo(() => {
+        const merged: Message[] = []
+
+        for (const msg of chat.messages) {
+            const last = merged[merged.length - 1]
+            const isToolResultOnlyAssistant =
+                msg.role === 'assistant'
+                && Boolean(msg.toolResults?.length)
+                && !msg.toolCalls?.length
+                && !msg.content?.trim()
+                && !msg.reasoning?.trim()
+
+            const canMergeIntoPrevious =
+                Boolean(last)
+                && Boolean(last.toolCalls?.length)
+                && !last.toolResults?.length
+                && last.role === 'assistant'
+
+            if (isToolResultOnlyAssistant && canMergeIntoPrevious && last) {
+                merged[merged.length - 1] = {
+                    ...last,
+                    toolResults: msg.toolResults
+                }
+                continue
+            }
+
+            merged.push(msg)
+        }
+
+        return merged
+    }, [chat.messages])
 
     const handleSuggestionClick = (text: string) => {
         setInput(text)
@@ -206,8 +257,8 @@ export default function ChatInterface({
                     </div>
                 ) : (
                     <>
-                        {chat.messages.map((message, index) => {
-                            const previous = chat.messages[index - 1]
+                        {displayMessages.map((message, index) => {
+                            const previous = displayMessages[index - 1]
                             const showAvatar = message.role === 'assistant'
                                 && (!previous || previous.role !== 'assistant')
                             return (
@@ -225,7 +276,27 @@ export default function ChatInterface({
                     <div className="agent-status">
                         <div className="spinner spinner-sm" />
                         <span>{currentAction}</span>
+                        <button
+                            type="button"
+                            className="btn btn-sm btn-ghost"
+                            onClick={handleStop}
+                        >
+                            Stop
+                        </button>
                     </div>
+                )}
+
+                {isRunning && streamingContent && (
+                    <MessageBubble
+                        message={{
+                            id: 'streaming-preview',
+                            role: 'assistant',
+                            content: streamingContent,
+                            timestamp: new Date().toISOString(),
+                            isStreaming: true
+                        }}
+                        showAvatar={false}
+                    />
                 )}
 
                 <div ref={messagesEndRef} />

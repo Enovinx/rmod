@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import rehypeHighlight from 'rehype-highlight'
 import 'highlight.js/styles/github-dark.css'
@@ -20,7 +20,18 @@ export default function MessageBubble({ message, showAvatar = true }: MessageBub
     const hasText = Boolean(message.content?.trim())
     const hasToolCalls = Boolean(message.toolCalls && message.toolCalls.length > 0)
     const hasToolResults = Boolean(message.toolResults && message.toolResults.length > 0)
-    const hasReasoning = Boolean(message.reasoning?.trim())
+    const shouldCompressAssistantText = !isUser && hasToolCalls && hasText && !message.isStreaming
+    const composedThinking = [
+        message.reasoning?.trim(),
+        shouldCompressAssistantText ? message.content.trim() : ''
+    ].filter(Boolean).join('\n\n')
+    const hasThinking = Boolean(composedThinking)
+
+    useEffect(() => {
+        if (hasThinking && shouldCompressAssistantText) {
+            setShowReasoning(true)
+        }
+    }, [hasThinking, shouldCompressAssistantText])
 
     if (isTool) {
         return (
@@ -37,7 +48,7 @@ export default function MessageBubble({ message, showAvatar = true }: MessageBub
     }
 
     return (
-        <div className={`message-bubble ${isUser ? 'user-message' : 'assistant-message'}`}>
+        <div className={`message-bubble ${isUser ? 'user-message' : 'assistant-message'} ${message.isStreaming ? 'streaming-message' : ''}`}>
             {!isUser && showAvatar && (
                 <div className="message-avatar">
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -46,7 +57,7 @@ export default function MessageBubble({ message, showAvatar = true }: MessageBub
                 </div>
             )}
             <div className="message-content">
-                {hasText && (
+                {hasText && !shouldCompressAssistantText && (
                     <div className="message-text">
                         <ReactMarkdown
                             rehypePlugins={[rehypeHighlight]}
@@ -70,13 +81,13 @@ export default function MessageBubble({ message, showAvatar = true }: MessageBub
                     </div>
                 )}
 
-                {(hasToolCalls || hasToolResults || hasReasoning) && (
+                {(hasToolCalls || hasToolResults || hasThinking) && (
                     <div className="message-steps">
-                        {hasReasoning && (
+                        {hasThinking && (
                             <button
                                 type="button"
                                 className={`step-toggle tooltip ${showReasoning ? 'is-open' : ''}`}
-                                data-tooltip={showReasoning ? 'Hide thinking' : 'Show thinking'}
+                                data-tooltip={showReasoning ? 'Hide thinking' : 'Show thinking notes'}
                                 aria-label={showReasoning ? 'Hide thinking' : 'Show thinking'}
                                 onClick={() => setShowReasoning(!showReasoning)}
                             >
@@ -118,15 +129,26 @@ export default function MessageBubble({ message, showAvatar = true }: MessageBub
                     </div>
                 )}
 
-                {hasReasoning && showReasoning && (
+                {hasThinking && showReasoning && (
                     <div className="thinking-panel">
                         <div className="thinking-header">Thinking</div>
-                        <pre className="thinking-content">{message.reasoning}</pre>
+                        <div className="thinking-content">
+                            <ReactMarkdown>{composedThinking}</ReactMarkdown>
+                        </div>
                     </div>
                 )}
 
                 {hasToolCalls && showToolCalls && (
                     <div className="tool-calls">
+                        <div className="tool-call-icons">
+                            {message.toolCalls?.map((tool, index) => (
+                                <div key={`${tool.id}-icon`} className="tool-call-icon tooltip" data-tooltip={tool.name} style={{ zIndex: message.toolCalls.length - index }}>
+                                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                                        <path d="M7 2L10 5M10 5L7 8M10 5H2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                    </svg>
+                                </div>
+                            ))}
+                        </div>
                         {message.toolCalls?.map(tool => (
                             <div key={tool.id} className="tool-call">
                                 <div className="tool-call-header">
@@ -143,6 +165,21 @@ export default function MessageBubble({ message, showAvatar = true }: MessageBub
 
                 {hasToolResults && showToolResults && (
                     <div className="tool-results">
+                        <div className="tool-result-icons">
+                            {message.toolResults?.map((result, index) => (
+                                <div
+                                    key={`${result.toolCallId}-icon`}
+                                    className={`tool-result-icon tooltip ${result.error ? 'error' : ''}`}
+                                    data-tooltip={result.error ? 'Tool failed' : 'Tool output'}
+                                    style={{ zIndex: message.toolResults.length - index }}
+                                >
+                                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                                        <path d="M3 7H6L7.5 9L9.5 5H11" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                                        <rect x="2" y="2" width="8" height="8" rx="2" stroke="currentColor" strokeWidth="1.2" />
+                                    </svg>
+                                </div>
+                            ))}
+                        </div>
                         {message.toolResults?.map(result => (
                             <div key={result.toolCallId} className={`tool-result ${result.error ? 'error' : ''}`}>
                                 <pre>{typeof result.result === 'string' ? result.result : JSON.stringify(result.result, null, 2)}</pre>
