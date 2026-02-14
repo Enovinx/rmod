@@ -138,52 +138,40 @@ export default function ChatInterface({
     const displayMessages = useMemo(() => {
         const merged: Message[] = []
 
-        for (const msg of chat.messages) {
-            const last = merged[merged.length - 1]
-            const isAssistantMetaOnly =
-                msg.role === 'assistant'
-                && !msg.content?.trim()
-                && !msg.reasoning?.trim()
-                && (Boolean(msg.toolCalls?.length) || Boolean(msg.toolResults?.length))
+        for (let index = 0; index < chat.messages.length; index++) {
+            const msg = chat.messages[index]
 
-            const canMergeMetaOnlyIntoPrevious =
-                Boolean(last)
-                && last.role === 'assistant'
-                && !last.content?.trim()
-                && !last.reasoning?.trim()
-                && (Boolean(last.toolCalls?.length) || Boolean(last.toolResults?.length))
-
-            if (isAssistantMetaOnly && canMergeMetaOnlyIntoPrevious && last) {
-                merged[merged.length - 1] = {
-                    ...last,
-                    toolCalls: [...(last.toolCalls || []), ...(msg.toolCalls || [])],
-                    toolResults: [...(last.toolResults || []), ...(msg.toolResults || [])]
-                }
+            if (msg.role !== 'assistant') {
+                merged.push(msg)
                 continue
             }
 
-            const isToolResultOnlyAssistant =
-                msg.role === 'assistant'
-                && Boolean(msg.toolResults?.length)
-                && !msg.toolCalls?.length
-                && !msg.content?.trim()
-                && !msg.reasoning?.trim()
+            const assistantRun: Message[] = [msg]
+            let cursor = index + 1
 
-            const canMergeIntoPrevious =
-                Boolean(last)
-                && Boolean(last.toolCalls?.length)
-                && !last.toolResults?.length
-                && last.role === 'assistant'
-
-            if (isToolResultOnlyAssistant && canMergeIntoPrevious && last) {
-                merged[merged.length - 1] = {
-                    ...last,
-                    toolResults: msg.toolResults
-                }
-                continue
+            while (cursor < chat.messages.length && chat.messages[cursor].role === 'assistant') {
+                assistantRun.push(chat.messages[cursor])
+                cursor++
             }
 
-            merged.push(msg)
+            const textSegments = assistantRun
+                .map(item => item.content?.trim())
+                .filter((item): item is string => Boolean(item))
+
+            const firstText = textSegments[0] || ''
+            const lastText = textSegments[textSegments.length - 1] || ''
+            const hasDistinctBoundaryText = firstText && lastText && firstText !== lastText
+
+            const mergedAssistant: Message = {
+                ...assistantRun[0],
+                content: hasDistinctBoundaryText ? `${firstText}\n\n${lastText}` : (firstText || ''),
+                reasoning: assistantRun.map(item => item.reasoning?.trim()).filter(Boolean).join('\n\n') || undefined,
+                toolCalls: assistantRun.flatMap(item => item.toolCalls || []),
+                toolResults: assistantRun.flatMap(item => item.toolResults || [])
+            }
+
+            merged.push(mergedAssistant)
+            index = cursor - 1
         }
 
         return merged
