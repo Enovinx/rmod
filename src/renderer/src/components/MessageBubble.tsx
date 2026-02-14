@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import rehypeHighlight from 'rehype-highlight'
 import 'highlight.js/styles/github-dark.css'
@@ -26,6 +26,12 @@ export default function MessageBubble({ message, showAvatar = true }: MessageBub
         shouldCompressAssistantText ? message.content.trim() : ''
     ].filter(Boolean).join('\n\n')
     const hasThinking = Boolean(composedThinking)
+
+    useEffect(() => {
+        if (hasThinking && shouldCompressAssistantText) {
+            setShowReasoning(true)
+        }
+    }, [hasThinking, shouldCompressAssistantText])
 
     if (isTool) {
         return (
@@ -126,7 +132,9 @@ export default function MessageBubble({ message, showAvatar = true }: MessageBub
                 {hasThinking && showReasoning && (
                     <div className="thinking-panel">
                         <div className="thinking-header">Thinking</div>
-                        <pre className="thinking-content">{composedThinking}</pre>
+                        <div className="thinking-content">
+                            <ReactMarkdown>{composedThinking}</ReactMarkdown>
+                        </div>
                     </div>
                 )}
 
