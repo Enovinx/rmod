@@ -37,7 +37,7 @@ export default function MessageBubble({ message, showAvatar = true }: MessageBub
     }
 
     return (
-        <div className={`message-bubble ${isUser ? 'user-message' : 'assistant-message'}`}>
+        <div className={`message-bubble ${isUser ? 'user-message' : 'assistant-message'} ${message.isStreaming ? 'streaming-message' : ''}`}>
             {!isUser && showAvatar && (
                 <div className="message-avatar">
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -127,6 +127,15 @@ export default function MessageBubble({ message, showAvatar = true }: MessageBub
 
                 {hasToolCalls && showToolCalls && (
                     <div className="tool-calls">
+                        <div className="tool-call-icons">
+                            {message.toolCalls?.map((tool, index) => (
+                                <div key={`${tool.id}-icon`} className="tool-call-icon tooltip" data-tooltip={tool.name} style={{ zIndex: message.toolCalls.length - index }}>
+                                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                                        <path d="M7 2L10 5M10 5L7 8M10 5H2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                    </svg>
+                                </div>
+                            ))}
+                        </div>
                         {message.toolCalls?.map(tool => (
                             <div key={tool.id} className="tool-call">
                                 <div className="tool-call-header">
