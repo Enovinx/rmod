@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
-import type { Chat, Project, Settings, Message } from '../types'
+import type { Chat, Project, Settings, Message, SuperAgentPlan } from '../types'
 import { runAgent } from '../agent'
 import MessageBubble from './MessageBubble'
 import SuperAgentPanel from './SuperAgentPanel'
@@ -30,6 +30,10 @@ export default function ChatInterface({
     const [showCheckpoints, setShowCheckpoints] = useState(false)
     const [streamingContent, setStreamingContent] = useState('')
     const [abortController, setAbortController] = useState<AbortController | null>(null)
+    const [pendingPlan, setPendingPlan] = useState<string | null>(null)
+    const [planDraft, setPlanDraft] = useState('')
+    const [planResolver, setPlanResolver] = useState<((value: string | null) => void) | null>(null)
+    const [superAgentPlan, setSuperAgentPlan] = useState<SuperAgentPlan | null>(null)
 
     const messagesEndRef = useRef<HTMLDivElement>(null)
     const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -55,15 +59,32 @@ export default function ChatInterface({
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
     }
 
+    const initializeChecklist = (tasks: string[]) => {
+        setSuperAgentPlan({
+            id: `plan-${Date.now()}`,
+            goal: userMessageRef.current || 'Super agent task',
+            tasks: tasks.map((task, index) => ({
+                id: `task-${index}`,
+                description: task,
+                status: 'pending'
+            })),
+            createdAt: new Date().toISOString()
+        })
+    }
+
+    const userMessageRef = useRef('')
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
         if (!input.trim() || isRunning) return
 
         const userMessage = input.trim()
+        userMessageRef.current = userMessage
         setInput('')
         setIsRunning(true)
         setCurrentAction('Starting...')
         setStreamingContent('')
+        setSuperAgentPlan(null)
         const controller = new AbortController()
         setAbortController(controller)
 
@@ -92,6 +113,26 @@ export default function ChatInterface({
                 onStatusUpdate: setCurrentAction,
                 onStreamUpdate: setStreamingContent,
                 signal: controller.signal,
+                onPlanReady: async (planText) => {
+                    setPendingPlan(planText)
+                    setPlanDraft(planText)
+                    return await new Promise<string | null>((resolve) => {
+                        setPlanResolver(() => resolve)
+                    })
+                },
+                onChecklistInit: (tasks) => {
+                    initializeChecklist(tasks)
+                },
+                onChecklistTaskUpdate: (taskIndex, status) => {
+                    setSuperAgentPlan(prev => {
+                        if (!prev || !prev.tasks[taskIndex]) return prev
+                        const updatedTasks = prev.tasks.map((task, index) => {
+                            if (index !== taskIndex) return task
+                            return { ...task, status }
+                        })
+                        return { ...prev, tasks: updatedTasks }
+                    })
+                },
                 onMessageAdded: async (msg) => {
                     const freshChat = await window.api.chats.get(chat.id)
                     if (freshChat) onChatUpdate(freshChat)
@@ -118,12 +159,29 @@ export default function ChatInterface({
             setCurrentAction('')
             setStreamingContent('')
             setAbortController(null)
+            setPendingPlan(null)
+            setPlanResolver(null)
         }
     }
 
     const handleStop = () => {
         abortController?.abort()
+        planResolver?.(null)
+        setPendingPlan(null)
+        setPlanResolver(null)
         setCurrentAction('Stopping...')
+    }
+
+    const handleProceedWithPlan = () => {
+        planResolver?.(planDraft)
+        setPendingPlan(null)
+        setPlanResolver(null)
+    }
+
+    const handleCancelPlan = () => {
+        planResolver?.(null)
+        setPendingPlan(null)
+        setPlanResolver(null)
     }
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -236,6 +294,13 @@ export default function ChatInterface({
                     </svg>
                     <span>Super Agent Mode - Creates plans and executes multi-step tasks. Uses more tokens.</span>
                 </div>
+            )}
+
+            {superAgentMode && superAgentPlan && (
+                <SuperAgentPanel
+                    plan={superAgentPlan}
+                    onCancel={handleStop}
+                />
             )}
 
             {/* Messages */}
@@ -353,6 +418,25 @@ export default function ChatInterface({
                         setShowCheckpoints(false)
                     }}
                 />
+            )}
+
+            {pendingPlan !== null && (
+                <div className="plan-review-overlay">
+                    <div className="plan-review-window">
+                        <h3>Review Super Agent Plan</h3>
+                        <p>Edit the plan if needed, then continue when you're ready.</p>
+                        <textarea
+                            className="plan-review-input"
+                            value={planDraft}
+                            onChange={e => setPlanDraft(e.target.value)}
+                            rows={12}
+                        />
+                        <div className="plan-review-actions">
+                            <button className="btn btn-ghost" onClick={handleCancelPlan}>Cancel</button>
+                            <button className="btn btn-primary" onClick={handleProceedWithPlan}>Proceed</button>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     )
