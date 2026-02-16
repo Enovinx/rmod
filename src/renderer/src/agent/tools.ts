@@ -12,6 +12,71 @@ export function getTools() {
         {
             type: 'function',
             function: {
+                name: 'create_plan',
+                description: 'Create a structured execution plan before implementation. Use after exploring the project.',
+                parameters: {
+                    type: 'object',
+                    properties: {
+                        summary: {
+                            type: 'string',
+                            description: 'High-level summary of the intended implementation'
+                        },
+                        filesToCreate: {
+                            type: 'array',
+                            items: { type: 'string' },
+                            description: 'Relative file paths that need to be created'
+                        },
+                        implementationNotes: {
+                            type: 'array',
+                            items: { type: 'string' },
+                            description: 'Implementation approach notes'
+                        },
+                        tasks: {
+                            type: 'array',
+                            description: 'Checklist tasks in JSON form for later tracking',
+                            items: {
+                                type: 'object',
+                                properties: {
+                                    id: { type: 'string' },
+                                    description: { type: 'string' }
+                                },
+                                required: ['id', 'description']
+                            }
+                        }
+                    },
+                    required: ['summary', 'tasks']
+                }
+            }
+        },
+        {
+            type: 'function',
+            function: {
+                name: 'update_task_status',
+                description: 'Update a planned checklist task status while executing the approved plan.',
+                parameters: {
+                    type: 'object',
+                    properties: {
+                        taskId: {
+                            type: 'string',
+                            description: 'Task id from the approved plan JSON checklist'
+                        },
+                        status: {
+                            type: 'string',
+                            enum: ['in-progress', 'completed', 'failed'],
+                            description: 'New status for this task'
+                        },
+                        note: {
+                            type: 'string',
+                            description: 'Optional note about this update'
+                        }
+                    },
+                    required: ['taskId', 'status']
+                }
+            }
+        },
+        {
+            type: 'function',
+            function: {
                 name: 'read_file',
                 description: 'Read the contents of a file. Returns the file contents as a string.',
                 parameters: {
@@ -155,6 +220,28 @@ export async function executeToolCall(
                     return { success: true, data: result.content }
                 }
                 return { success: false, error: result.error || 'Failed to read file' }
+            }
+
+            case 'create_plan': {
+                return {
+                    success: true,
+                    data: {
+                        message: 'Plan draft recorded. Present it to the user for review before implementation.',
+                        plan: args
+                    }
+                }
+            }
+
+            case 'update_task_status': {
+                return {
+                    success: true,
+                    data: {
+                        message: `Task ${args.taskId} marked as ${args.status}`,
+                        taskId: args.taskId,
+                        status: args.status,
+                        note: args.note
+                    }
+                }
             }
 
             case 'write_file': {

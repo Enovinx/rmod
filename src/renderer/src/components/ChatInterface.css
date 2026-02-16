@@ -3,6 +3,7 @@
     flex-direction: column;
     height: 100%;
     background: radial-gradient(circle at top, color-mix(in srgb, var(--accent-primary) 8%, transparent) 0%, transparent 45%);
+    position: relative;
 }
 
 .chat-header {
@@ -114,6 +115,11 @@
     animation: pulse-glow 2s ease-in-out infinite;
 }
 
+.super-agent-dock-wrap {
+    padding: 0 var(--spacing-lg) var(--spacing-sm);
+    background: var(--bg-primary);
+}
+
 .chat-input-form {
     padding: var(--spacing-md) var(--spacing-lg) var(--spacing-lg);
     background: var(--bg-primary);
@@ -175,22 +181,23 @@
     flex-shrink: 0;
 }
 
-.plan-review-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.6);
+.plan-review-sidepanel {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: min(520px, 100%);
+    background: rgba(10, 10, 15, 0.84);
+    backdrop-filter: blur(4px);
+    z-index: 12;
     display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-    padding: var(--spacing-lg);
+    justify-content: flex-end;
 }
 
 .plan-review-window {
-    width: min(780px, 100%);
+    width: 100%;
     background: var(--bg-primary);
-    border: 1px solid var(--border-default);
-    border-radius: var(--radius-lg);
+    border-left: 1px solid var(--border-default);
     padding: var(--spacing-lg);
     display: flex;
     flex-direction: column;
@@ -224,4 +231,5 @@
     display: flex;
     justify-content: flex-end;
     gap: var(--spacing-sm);
+    flex-wrap: wrap;
 }

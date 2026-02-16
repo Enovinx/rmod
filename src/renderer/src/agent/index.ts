@@ -1,5 +1,11 @@
-import type { Settings, Message, ToolCall, ToolResult } from '../types'
+import type { Settings, Message, ToolCall, ToolResult, SuperAgentPlanTaskPayload } from '../types'
 import { getTools, executeToolCall } from './tools'
+
+interface PlanReviewResult {
+    action: 'approve' | 'revise' | 'cancel'
+    planText?: string
+    feedback?: string
+}
 
 interface AgentOptions {
     chatId: string
@@ -10,9 +16,9 @@ interface AgentOptions {
     onStatusUpdate: (status: string) => void
     onMessageAdded: (message: Message) => void
     onStreamUpdate?: (partialContent: string) => void
-    onPlanReady?: (plan: string) => Promise<string | null>
-    onChecklistInit?: (tasks: string[]) => void
-    onChecklistTaskUpdate?: (taskIndex: number, status: 'in-progress' | 'completed' | 'failed') => void
+    onPlanReady?: (plan: string) => Promise<PlanReviewResult>
+    onChecklistInit?: (tasks: SuperAgentPlanTaskPayload[]) => void
+    onChecklistTaskUpdate?: (taskId: string, status: 'in-progress' | 'completed' | 'failed', note?: string) => void
     signal?: AbortSignal
 }
 
@@ -45,28 +51,60 @@ When you've completed the user's request, provide a summary of what you did.`
 
 const SUPER_AGENT_SYSTEM_PROMPT = `${SYSTEM_PROMPT}
 
-You are in SUPER AGENT MODE. For complex tasks:
-1. First create a plan with clear steps and show it to the user before doing anything else
-2. Execute each step methodically
-3. After each step, verify it worked correctly
-4. If a step fails, try an alternative approach
-5. Keep the user informed of progress
+You are in SUPER AGENT MODE.
 
-Format your plan as:
-## Plan
-1. Step one description
-2. Step two description
-...
+Workflow:
+1. Explore the project FIRST (at minimum use list_directory on "." and inspect relevant files).
+2. Use the create_plan tool to draft a structured plan.
+3. Present the plan to the user for approval before making code changes.
+4. After approval, execute tasks methodically.
+5. Use update_task_status to mark each task as in-progress/completed/failed.
 
-Then execute each step, marking them as complete.`
+Plan response format must include:
+- ## Plan
+- ## Files To Create
+- ## Implementation Approach
+- ## Task Checklist (JSON)
 
-const SUPER_AGENT_PLAN_ENFORCER = `In this mode, your first assistant response MUST be a plan for the user and MUST include a markdown section titled exactly "## Plan".
-Do not call tools until after the plan message has been sent.`
+The Task Checklist must be valid JSON and contain an array of task objects with stable ids and descriptions.
+
+Do not start implementation before user approval.`
+
+const SUPER_AGENT_PLAN_ENFORCER = `Before implementation, provide a visible plan that includes a markdown section titled exactly "## Plan" and a section titled exactly "## Task Checklist (JSON)".`
 
 interface StreamedAssistantMessage {
     content: string
     reasoning?: string
     tool_calls?: any[]
+}
+
+function parsePlanTasks(planText: string): SuperAgentPlanTaskPayload[] {
+    const jsonBlock = planText.match(/##\s*Task Checklist \(JSON\)[\s\S]*?```json\s*([\s\S]*?)```/i)
+    if (jsonBlock?.[1]) {
+        try {
+            const parsed = JSON.parse(jsonBlock[1])
+            if (Array.isArray(parsed)) {
+                return parsed
+                    .map((task: any, index) => ({
+                        id: String(task.id || `task-${index + 1}`),
+                        title: typeof task.title === 'string' ? task.title : undefined,
+                        description: String(task.description || task.title || `Task ${index + 1}`)
+                    }))
+                    .filter(task => task.description)
+            }
+        } catch {
+            // Fall back to numbered plan items.
+        }
+    }
+
+    return planText
+        .split('\n')
+        .map(line => line.trim())
+        .filter(line => /^\d+\.\s+/.test(line))
+        .map((line, index) => ({
+            id: `task-${index + 1}`,
+            description: line.replace(/^\d+\.\s+/, '').trim()
+        }))
 }
 
 async function streamChatCompletion(params: {
@@ -195,7 +233,6 @@ export async function runAgent(options: AgentOptions): Promise<void> {
 
     const tools = getTools()
 
-    // Build messages for API
     const chatData = await window.api.chats.get(chatId)
     if (!chatData) throw new Error('Chat not found')
 
@@ -203,7 +240,6 @@ export async function runAgent(options: AgentOptions): Promise<void> {
         { role: 'system', content: superAgentMode ? SUPER_AGENT_SYSTEM_PROMPT : SYSTEM_PROMPT }
     ]
 
-    // Add conversation history (limit to last 20 messages to save tokens)
     const recentMessages = chatData.messages.slice(-20)
     for (const msg of recentMessages) {
         if (msg.role === 'user' || msg.role === 'assistant') {
@@ -213,8 +249,6 @@ export async function runAgent(options: AgentOptions): Promise<void> {
 
     let iterations = 0
     let hasPresentedPlan = false
-    let checklistTasks: string[] = []
-    let checklistCursor = 0
 
     while (true) {
         if (signal?.aborted) {
@@ -240,29 +274,35 @@ export async function runAgent(options: AgentOptions): Promise<void> {
                 signal,
                 onToken: onStreamUpdate
             })
-            const reasoning =
-                typeof assistantMessage.reasoning === 'string'
-                    ? assistantMessage.reasoning
-                    : undefined
+
+            const reasoning = typeof assistantMessage.reasoning === 'string'
+                ? assistantMessage.reasoning
+                : undefined
 
             if (superAgentMode && !hasPresentedPlan) {
                 const includesPlanHeader = (assistantMessage.content || '').includes('## Plan')
                 if (!assistantMessage.tool_calls?.length && includesPlanHeader) {
-                    const reviewedPlan = await onPlanReady?.(assistantMessage.content || '')
-                    if (reviewedPlan === null) {
+                    const review = await onPlanReady?.(assistantMessage.content || '')
+                    if (!review || review.action === 'cancel') {
                         throw new Error('Request stopped by user.')
                     }
 
-                    const finalPlan = reviewedPlan || assistantMessage.content || ''
-                    const planLines = finalPlan
-                        .split('\n')
-                        .map(line => line.trim())
-                        .filter(line => /^\d+\.\s+/.test(line))
-                        .map(line => line.replace(/^\d+\.\s+/, '').trim())
+                    if (review.action === 'revise') {
+                        const revisionMessage = review.feedback?.trim() || 'Please revise the plan.'
+                        messages.push({
+                            role: 'assistant',
+                            content: assistantMessage.content || ''
+                        })
+                        messages.push({
+                            role: 'user',
+                            content: `Please revise the super agent plan based on this feedback: ${revisionMessage}`
+                        })
+                        onStreamUpdate?.('')
+                        continue
+                    }
 
-                    checklistTasks = planLines
-                    checklistCursor = 0
-                    onChecklistInit?.(planLines)
+                    const finalPlan = review.planText || assistantMessage.content || ''
+                    onChecklistInit?.(parsePlanTasks(finalPlan))
 
                     const planMsg = await window.api.chats.addMessage(chatId, {
                         role: 'assistant',
@@ -271,20 +311,14 @@ export async function runAgent(options: AgentOptions): Promise<void> {
                     })
                     if (planMsg) onMessageAdded(planMsg)
 
-                    messages.push({
-                        role: 'assistant',
-                        content: finalPlan
-                    })
-
+                    messages.push({ role: 'assistant', content: finalPlan })
                     hasPresentedPlan = true
                     onStreamUpdate?.('')
                     continue
                 }
             }
 
-            // Check if there are tool calls
             if (assistantMessage.tool_calls && assistantMessage.tool_calls.length > 0) {
-                // Save assistant message with tool calls
                 const toolCalls: ToolCall[] = assistantMessage.tool_calls.map((tc: any) => ({
                     id: tc.id,
                     name: tc.function.name,
@@ -305,13 +339,8 @@ export async function runAgent(options: AgentOptions): Promise<void> {
                 })
                 if (savedMsg) onMessageAdded(savedMsg)
 
-                // Execute tool calls
                 const toolResults: ToolResult[] = []
                 for (const toolCall of toolCalls) {
-                    if (superAgentMode && checklistCursor < checklistTasks.length) {
-                        onChecklistTaskUpdate?.(checklistCursor, 'in-progress')
-                    }
-
                     onStatusUpdate(`Executing: ${toolCall.name}`)
 
                     const result = await executeToolCall(toolCall.name, toolCall.arguments, projectPath)
@@ -321,13 +350,20 @@ export async function runAgent(options: AgentOptions): Promise<void> {
                         error: result.success ? undefined : result.error
                     })
 
-                    if (superAgentMode && checklistCursor < checklistTasks.length) {
-                        onChecklistTaskUpdate?.(checklistCursor, result.success ? 'completed' : 'failed')
-                        checklistCursor++
+                    if (toolCall.name === 'update_task_status') {
+                        const statusArg = toolCall.arguments.status
+                        if (typeof toolCall.arguments.taskId === 'string'
+                            && (statusArg === 'in-progress' || statusArg === 'completed' || statusArg === 'failed')) {
+                            const noteArg = toolCall.arguments.note
+                            onChecklistTaskUpdate?.(
+                                toolCall.arguments.taskId,
+                                statusArg,
+                                typeof noteArg === 'string' ? noteArg : undefined
+                            )
+                        }
                     }
                 }
 
-                // Save tool results as a message
                 const toolMsg = await window.api.chats.addMessage(chatId, {
                     role: 'assistant',
                     content: '',
@@ -335,14 +371,12 @@ export async function runAgent(options: AgentOptions): Promise<void> {
                 })
                 if (toolMsg) onMessageAdded(toolMsg)
 
-                // Add to messages for next iteration
                 messages.push({
                     role: 'assistant',
                     content: assistantMessage.content || '',
                     tool_calls: assistantMessage.tool_calls
                 })
 
-                // Add tool results to messages
                 for (let i = 0; i < toolCalls.length; i++) {
                     messages.push({
                         role: 'tool',
@@ -350,9 +384,7 @@ export async function runAgent(options: AgentOptions): Promise<void> {
                         content: JSON.stringify(toolResults[i].result)
                     })
                 }
-
             } else {
-                // No tool calls - agent is done
                 const finalMsg = await window.api.chats.addMessage(chatId, {
                     role: 'assistant',
                     content: assistantMessage.content || '',
@@ -364,12 +396,10 @@ export async function runAgent(options: AgentOptions): Promise<void> {
                 return
             }
 
-            // Check if agent explicitly signals completion
             if (finishReason === 'stop' && !assistantMessage.tool_calls) {
                 onStatusUpdate('Done!')
                 return
             }
-
         } catch (error) {
             console.error('Agent error:', error)
             throw error

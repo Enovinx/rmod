@@ -4,11 +4,54 @@ import './SuperAgentPanel.css'
 interface SuperAgentPanelProps {
     plan: SuperAgentPlan
     onCancel: () => void
+    variant?: 'full' | 'dock'
 }
 
-export default function SuperAgentPanel({ plan, onCancel }: SuperAgentPanelProps) {
+export default function SuperAgentPanel({ plan, onCancel, variant = 'full' }: SuperAgentPanelProps) {
     const completedCount = plan.tasks.filter(t => t.status === 'completed').length
-    const progress = (completedCount / plan.tasks.length) * 100
+    const progress = plan.tasks.length > 0 ? (completedCount / plan.tasks.length) * 100 : 0
+    const activeTask = plan.tasks.find(task => task.status === 'in-progress')
+    const remainingTasks = plan.tasks.filter(task => task.status === 'pending' || task.status === 'in-progress')
+
+    if (variant === 'dock') {
+        return (
+            <div className="super-agent-panel super-agent-dock">
+                <div className="dock-header-row">
+                    <div className="panel-title">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                            <path d="M8 1L9.545 4.13L13 4.635L10.5 7.07L11.09 10.5L8 8.885L4.91 10.5L5.5 7.07L3 4.635L6.455 4.13L8 1Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+                        </svg>
+                        <span>Super Agent Progress</span>
+                    </div>
+                    <button className="btn btn-ghost btn-sm" onClick={onCancel}>Stop</button>
+                </div>
+
+                <div className="dock-current-task">
+                    <span className="label">Current:</span>
+                    <span>{activeTask?.description || 'Waiting for next task...'}</span>
+                </div>
+
+                <div className="progress-bar">
+                    <div className="progress-fill" style={{ width: `${progress}%` }} />
+                </div>
+                <div className="progress-text">{completedCount} of {plan.tasks.length} tasks completed</div>
+
+                <div className="tasks-list dock-tasks-list">
+                    {remainingTasks.map((task, index) => (
+                        <div key={task.id} className={`task-item ${task.status}`}>
+                            <div className="task-checkbox">
+                                {task.status === 'in-progress' ? <div className="spinner spinner-sm" /> : null}
+                            </div>
+                            <div className="task-content">
+                                <span className="task-number">{index + 1}.</span>
+                                <span className="task-description">{task.description}</span>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        )
+    }
 
     return (
         <div className="super-agent-panel">
