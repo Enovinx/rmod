@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
-import type { Chat, Project, Settings, Message, SuperAgentPlan } from '../types'
+import type { Chat, Project, Settings, Message, SuperAgentPlan, SuperAgentPlanTaskPayload } from '../types'
 import { runAgent } from '../agent'
 import MessageBubble from './MessageBubble'
 import SuperAgentPanel from './SuperAgentPanel'
@@ -32,7 +32,8 @@ export default function ChatInterface({
     const [abortController, setAbortController] = useState<AbortController | null>(null)
     const [pendingPlan, setPendingPlan] = useState<string | null>(null)
     const [planDraft, setPlanDraft] = useState('')
-    const [planResolver, setPlanResolver] = useState<((value: string | null) => void) | null>(null)
+    const [planChangeRequest, setPlanChangeRequest] = useState('')
+    const [planResolver, setPlanResolver] = useState<((value: { action: 'approve' | 'revise' | 'cancel'; planText?: string; feedback?: string }) => void) | null>(null)
     const [superAgentPlan, setSuperAgentPlan] = useState<SuperAgentPlan | null>(null)
 
     const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -59,13 +60,13 @@ export default function ChatInterface({
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
     }
 
-    const initializeChecklist = (tasks: string[]) => {
+    const initializeChecklist = (tasks: SuperAgentPlanTaskPayload[]) => {
         setSuperAgentPlan({
             id: `plan-${Date.now()}`,
             goal: userMessageRef.current || 'Super agent task',
             tasks: tasks.map((task, index) => ({
-                id: `task-${index}`,
-                description: task,
+                id: task.id || `task-${index + 1}`,
+                description: task.title ? `${task.title}: ${task.description}` : task.description,
                 status: 'pending'
             })),
             createdAt: new Date().toISOString()
@@ -89,7 +90,6 @@ export default function ChatInterface({
         setAbortController(controller)
 
         try {
-            // Add user message
             const userMsg = await window.api.chats.addMessage(chat.id, {
                 role: 'user',
                 content: userMessage
@@ -100,10 +100,8 @@ export default function ChatInterface({
                 onChatUpdate(updatedChat)
             }
 
-            // Create checkpoint before agent runs
             await window.api.checkpoints.create(chat.id, chat.messages.length, project.folderPath)
 
-            // Run the agent
             await runAgent({
                 chatId: chat.id,
                 userMessage,
@@ -116,33 +114,32 @@ export default function ChatInterface({
                 onPlanReady: async (planText) => {
                     setPendingPlan(planText)
                     setPlanDraft(planText)
-                    return await new Promise<string | null>((resolve) => {
+                    setPlanChangeRequest('')
+                    return await new Promise<{ action: 'approve' | 'revise' | 'cancel'; planText?: string; feedback?: string }>((resolve) => {
                         setPlanResolver(() => resolve)
                     })
                 },
                 onChecklistInit: (tasks) => {
                     initializeChecklist(tasks)
                 },
-                onChecklistTaskUpdate: (taskIndex, status) => {
+                onChecklistTaskUpdate: (taskId, status) => {
                     setSuperAgentPlan(prev => {
-                        if (!prev || !prev.tasks[taskIndex]) return prev
-                        const updatedTasks = prev.tasks.map((task, index) => {
-                            if (index !== taskIndex) return task
+                        if (!prev) return prev
+                        const updatedTasks = prev.tasks.map(task => {
+                            if (task.id !== taskId) return task
                             return { ...task, status }
                         })
                         return { ...prev, tasks: updatedTasks }
                     })
                 },
-                onMessageAdded: async (msg) => {
+                onMessageAdded: async () => {
                     const freshChat = await window.api.chats.get(chat.id)
                     if (freshChat) onChatUpdate(freshChat)
                 }
             })
 
-            // Refresh chat
             const finalChat = await window.api.chats.get(chat.id)
             if (finalChat) onChatUpdate(finalChat)
-
         } catch (error) {
             console.error('Agent error:', error)
             const message = error instanceof Error ? error.message : 'Unknown error occurred'
@@ -161,27 +158,37 @@ export default function ChatInterface({
             setAbortController(null)
             setPendingPlan(null)
             setPlanResolver(null)
+            setPlanChangeRequest('')
         }
     }
 
     const handleStop = () => {
         abortController?.abort()
-        planResolver?.(null)
+        planResolver?.({ action: 'cancel' })
         setPendingPlan(null)
         setPlanResolver(null)
         setCurrentAction('Stopping...')
     }
 
     const handleProceedWithPlan = () => {
-        planResolver?.(planDraft)
+        planResolver?.({ action: 'approve', planText: planDraft })
         setPendingPlan(null)
         setPlanResolver(null)
     }
 
-    const handleCancelPlan = () => {
-        planResolver?.(null)
+    const handleRequestPlanChanges = () => {
+        const feedback = planChangeRequest.trim() || 'Please revise the plan and keep the same intent.'
+        planResolver?.({ action: 'revise', feedback })
         setPendingPlan(null)
         setPlanResolver(null)
+        setPlanChangeRequest('')
+    }
+
+    const handleCancelPlan = () => {
+        planResolver?.({ action: 'cancel' })
+        setPendingPlan(null)
+        setPlanResolver(null)
+        setPlanChangeRequest('')
     }
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -190,8 +197,6 @@ export default function ChatInterface({
             handleSubmit(e)
         }
     }
-
-
 
     const displayMessages = useMemo(() => {
         const merged: Message[] = []
@@ -242,7 +247,6 @@ export default function ChatInterface({
 
     return (
         <div className="chat-interface">
-            {/* Header */}
             <header className="chat-header">
                 <div className="chat-header-left">
                     <h2 className="chat-title truncate">
@@ -262,21 +266,14 @@ export default function ChatInterface({
                         </svg>
                         Super Agent
                     </button>
-                    <button
-                        className="btn btn-sm btn-ghost"
-                        onClick={() => setShowCheckpoints(true)}
-                        title="View checkpoints"
-                    >
+                    <button className="btn btn-sm btn-ghost" onClick={() => setShowCheckpoints(true)} title="View checkpoints">
                         <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
                             <path d="M2 7C2 4.23858 4.23858 2 7 2C9.76142 2 12 4.23858 12 7C12 9.76142 9.76142 12 7 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
                             <path d="M7 4V7L9 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                         </svg>
                         History
                     </button>
-                    <button
-                        className={`btn btn-sm ${showFileExplorer ? 'btn-primary' : 'btn-ghost'}`}
-                        onClick={onToggleFiles}
-                    >
+                    <button className={`btn btn-sm ${showFileExplorer ? 'btn-primary' : 'btn-ghost'}`} onClick={onToggleFiles}>
                         <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
                             <path d="M2 4V11C2 11.5523 2.44772 12 3 12H11C11.5523 12 12 11.5523 12 11V5C12 4.44772 11.5523 4 11 4H7L5.5 2.5H3C2.44772 2.5 2 2.94772 2 3.5V4Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
                         </svg>
@@ -285,25 +282,16 @@ export default function ChatInterface({
                 </div>
             </header>
 
-            {/* Super Agent Warning */}
             {superAgentMode && (
                 <div className="super-agent-banner">
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                         <path d="M8 1L15 14H1L8 1Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
                         <path d="M8 6V9M8 11V11.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
                     </svg>
-                    <span>Super Agent Mode - Creates plans and executes multi-step tasks. Uses more tokens.</span>
+                    <span>Super Agent Mode - explores project, drafts a plan, then executes checklist tasks.</span>
                 </div>
             )}
 
-            {superAgentMode && superAgentPlan && (
-                <SuperAgentPanel
-                    plan={superAgentPlan}
-                    onCancel={handleStop}
-                />
-            )}
-
-            {/* Messages */}
             <div className="chat-messages">
                 {displayMessages.length === 0 ? (
                     <div className="chat-welcome">
@@ -319,45 +307,30 @@ export default function ChatInterface({
                             I can read, create, edit, and search files in your project. Just describe what you want to build!
                         </p>
                         <div className="welcome-suggestions">
-                            <button onClick={() => handleSuggestionClick('Show me the structure of this project')}>
-                                📁 Show project structure
-                            </button>
-                            <button onClick={() => handleSuggestionClick('Create a new ModuleScript for handling player data')}>
-                                ✨ Create a new script
-                            </button>
-                            <button onClick={() => handleSuggestionClick('Find all uses of RemoteEvent in the codebase')}>
-                                🔍 Search the codebase
-                            </button>
+                            <button onClick={() => handleSuggestionClick('Show me the structure of this project')}>📁 Show project structure</button>
+                            <button onClick={() => handleSuggestionClick('Create a new ModuleScript for handling player data')}>✨ Create a new script</button>
+                            <button onClick={() => handleSuggestionClick('Find all uses of RemoteEvent in the codebase')}>🔍 Search the codebase</button>
                         </div>
                     </div>
                 ) : (
-                    <>
-                        {displayMessages.map((message, index) => {
-                            const previous = displayMessages[index - 1]
-                            const showAvatar = message.role === 'assistant'
-                                && (!previous || previous.role !== 'assistant')
-                            return (
-                                <MessageBubble
-                                    key={message.id || `${message.timestamp}-${index}`}
-                                    message={message}
-                                    showAvatar={showAvatar}
-                                />
-                            )
-                        })}
-                    </>
+                    displayMessages.map((message, index) => {
+                        const previous = displayMessages[index - 1]
+                        const showAvatar = message.role === 'assistant' && (!previous || previous.role !== 'assistant')
+                        return (
+                            <MessageBubble
+                                key={message.id || `${message.timestamp}-${index}`}
+                                message={message}
+                                showAvatar={showAvatar}
+                            />
+                        )
+                    })
                 )}
 
                 {isRunning && (
                     <div className="agent-status">
                         <div className="spinner spinner-sm" />
                         <span>{currentAction}</span>
-                        <button
-                            type="button"
-                            className="btn btn-sm btn-ghost"
-                            onClick={handleStop}
-                        >
-                            Stop
-                        </button>
+                        <button type="button" className="btn btn-sm btn-ghost" onClick={handleStop}>Stop</button>
                     </div>
                 )}
 
@@ -377,7 +350,12 @@ export default function ChatInterface({
                 <div ref={messagesEndRef} />
             </div>
 
-            {/* Input */}
+            {superAgentMode && superAgentPlan && (
+                <div className="super-agent-dock-wrap">
+                    <SuperAgentPanel plan={superAgentPlan} onCancel={handleStop} variant="dock" />
+                </div>
+            )}
+
             <form className="chat-input-form" onSubmit={handleSubmit}>
                 <div className={`chat-input-container ${isRunning ? 'is-disabled' : ''}`}>
                     <textarea
@@ -390,11 +368,7 @@ export default function ChatInterface({
                         rows={1}
                         disabled={isRunning}
                     />
-                    <button
-                        type="submit"
-                        className="btn btn-primary send-btn"
-                        disabled={!input.trim() || isRunning}
-                    >
+                    <button type="submit" className="btn btn-primary send-btn" disabled={!input.trim() || isRunning}>
                         {isRunning ? (
                             <div className="spinner spinner-sm" />
                         ) : (
@@ -406,7 +380,6 @@ export default function ChatInterface({
                 </div>
             </form>
 
-            {/* Checkpoints modal */}
             {showCheckpoints && (
                 <CheckpointViewer
                     chatId={chat.id}
@@ -421,22 +394,30 @@ export default function ChatInterface({
             )}
 
             {pendingPlan !== null && (
-                <div className="plan-review-overlay">
+                <aside className="plan-review-sidepanel">
                     <div className="plan-review-window">
                         <h3>Review Super Agent Plan</h3>
-                        <p>Edit the plan if needed, then continue when you're ready.</p>
+                        <p>Inspect the plan, edit directly, then proceed or request changes.</p>
                         <textarea
                             className="plan-review-input"
                             value={planDraft}
                             onChange={e => setPlanDraft(e.target.value)}
-                            rows={12}
+                            rows={14}
+                        />
+                        <textarea
+                            className="plan-review-input"
+                            value={planChangeRequest}
+                            onChange={e => setPlanChangeRequest(e.target.value)}
+                            rows={4}
+                            placeholder="Optional: Ask the agent to revise the plan before proceeding..."
                         />
                         <div className="plan-review-actions">
                             <button className="btn btn-ghost" onClick={handleCancelPlan}>Cancel</button>
+                            <button className="btn btn-ghost" onClick={handleRequestPlanChanges}>Ask for Changes</button>
                             <button className="btn btn-primary" onClick={handleProceedWithPlan}>Proceed</button>
                         </div>
                     </div>
-                </div>
+                </aside>
             )}
         </div>
     )

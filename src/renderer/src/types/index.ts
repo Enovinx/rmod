@@ -104,3 +104,9 @@ export interface SuperAgentTask {
     status: 'pending' | 'in-progress' | 'completed' | 'failed'
     result?: string
 }
+
+export interface SuperAgentPlanTaskPayload {
+    id: string
+    title?: string
+    description: string
+}

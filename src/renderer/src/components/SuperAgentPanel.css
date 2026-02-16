@@ -27,7 +27,8 @@
     margin-bottom: var(--spacing-md);
 }
 
-.panel-goal .label {
+.panel-goal .label,
+.dock-current-task .label {
     color: var(--text-muted);
     margin-right: var(--spacing-xs);
 }
@@ -117,4 +118,27 @@
     border-top: 1px solid var(--border-subtle);
     font-size: 12px;
     color: #f59e0b;
+}
+
+.super-agent-dock {
+    margin: 0;
+    padding: var(--spacing-md);
+}
+
+.dock-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--spacing-sm);
+}
+
+.dock-current-task {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: var(--spacing-sm);
+}
+
+.dock-tasks-list {
+    max-height: 120px;
+    overflow-y: auto;
 }
