@@ -5,12 +5,15 @@ interface SuperAgentPanelProps {
     plan: SuperAgentPlan
     onCancel: () => void
     variant?: 'full' | 'dock'
+    showCancelButton?: boolean
 }
 
-export default function SuperAgentPanel({ plan, onCancel, variant = 'full' }: SuperAgentPanelProps) {
+export default function SuperAgentPanel({ plan, onCancel, variant = 'full', showCancelButton = true }: SuperAgentPanelProps) {
     const completedCount = plan.tasks.filter(t => t.status === 'completed').length
     const progress = plan.tasks.length > 0 ? (completedCount / plan.tasks.length) * 100 : 0
     const activeTask = plan.tasks.find(task => task.status === 'in-progress')
+    const nextPendingTask = plan.tasks.find(task => task.status === 'pending')
+    const currentTaskLabel = activeTask?.description || nextPendingTask?.description || 'Waiting for next task...'
     const remainingTasks = plan.tasks.filter(task => task.status === 'pending' || task.status === 'in-progress')
 
     if (variant === 'dock') {
@@ -28,7 +31,7 @@ export default function SuperAgentPanel({ plan, onCancel, variant = 'full' }: Su
 
                 <div className="dock-current-task">
                     <span className="label">Current:</span>
-                    <span>{activeTask?.description || 'Waiting for next task...'}</span>
+                    <span>{currentTaskLabel}</span>
                 </div>
 
                 <div className="progress-bar">
@@ -62,9 +65,11 @@ export default function SuperAgentPanel({ plan, onCancel, variant = 'full' }: Su
                     </svg>
                     <span>Super Agent Plan</span>
                 </div>
-                <button className="btn btn-ghost btn-sm" onClick={onCancel}>
-                    Cancel
-                </button>
+                {showCancelButton && (
+                    <button className="btn btn-ghost btn-sm" onClick={onCancel}>
+                        Cancel
+                    </button>
+                )}
             </div>
 
             <div className="panel-goal">

@@ -227,6 +227,20 @@
     line-height: 1.5;
 }
 
+
+.plan-review-raw {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+}
+
+.plan-review-raw summary {
+    cursor: pointer;
+    color: var(--text-secondary);
+    font-size: 12px;
+}
+
+
 .plan-review-actions {
     display: flex;
     justify-content: flex-end;
