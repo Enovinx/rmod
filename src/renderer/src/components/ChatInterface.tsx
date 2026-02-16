@@ -198,6 +198,52 @@ export default function ChatInterface({
         }
     }
 
+    const planPreview = useMemo<SuperAgentPlan | null>(() => {
+        if (!planDraft.trim()) return null
+
+        const planGoal = userMessageRef.current || 'Super agent task'
+        const checklistMatch = planDraft.match(/##\s*Task Checklist \(JSON\)[\s\S]*?```json\s*([\s\S]*?)```/i)
+        let parsedTasks: SuperAgentPlan['tasks'] = []
+
+        if (checklistMatch?.[1]) {
+            try {
+                const parsed = JSON.parse(checklistMatch[1])
+                if (Array.isArray(parsed)) {
+                    parsedTasks = parsed
+                        .map((task: any, index) => ({
+                            id: String(task.id || `task-${index + 1}`),
+                            description: String(task.description || task.title || `Task ${index + 1}`),
+                            status: 'pending' as const
+                        }))
+                        .filter(task => task.description)
+                }
+            } catch {
+                parsedTasks = []
+            }
+        }
+
+        if (parsedTasks.length === 0) {
+            parsedTasks = planDraft
+                .split('\n')
+                .map(line => line.trim())
+                .filter(line => /^\d+\.\s+/.test(line))
+                .map((line, index) => ({
+                    id: `task-${index + 1}`,
+                    description: line.replace(/^\d+\.\s+/, '').trim(),
+                    status: 'pending' as const
+                }))
+        }
+
+        if (parsedTasks.length === 0) return null
+
+        return {
+            id: 'plan-preview',
+            goal: planGoal,
+            tasks: parsedTasks,
+            createdAt: new Date().toISOString()
+        }
+    }, [planDraft])
+
     const displayMessages = useMemo(() => {
         const merged: Message[] = []
 
@@ -334,7 +380,7 @@ export default function ChatInterface({
                     </div>
                 )}
 
-                {isRunning && streamingContent && (
+                {isRunning && streamingContent && pendingPlan === null && (
                     <MessageBubble
                         message={{
                             id: 'streaming-preview',
@@ -397,13 +443,26 @@ export default function ChatInterface({
                 <aside className="plan-review-sidepanel">
                     <div className="plan-review-window">
                         <h3>Review Super Agent Plan</h3>
-                        <p>Inspect the plan, edit directly, then proceed or request changes.</p>
-                        <textarea
-                            className="plan-review-input"
-                            value={planDraft}
-                            onChange={e => setPlanDraft(e.target.value)}
-                            rows={14}
-                        />
+                        <p>Inspect the structured checklist, then proceed or request changes.</p>
+                        {planPreview ? (
+                            <SuperAgentPanel plan={planPreview} onCancel={handleCancelPlan} showCancelButton={false} />
+                        ) : (
+                            <textarea
+                                className="plan-review-input"
+                                value={planDraft}
+                                onChange={e => setPlanDraft(e.target.value)}
+                                rows={14}
+                            />
+                        )}
+                        <details className="plan-review-raw">
+                            <summary>Edit raw plan markdown</summary>
+                            <textarea
+                                className="plan-review-input"
+                                value={planDraft}
+                                onChange={e => setPlanDraft(e.target.value)}
+                                rows={10}
+                            />
+                        </details>
                         <textarea
                             className="plan-review-input"
                             value={planChangeRequest}
