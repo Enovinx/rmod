@@ -10,6 +10,9 @@ interface AgentOptions {
     onStatusUpdate: (status: string) => void
     onMessageAdded: (message: Message) => void
     onStreamUpdate?: (partialContent: string) => void
+    onPlanReady?: (plan: string) => Promise<string | null>
+    onChecklistInit?: (tasks: string[]) => void
+    onChecklistTaskUpdate?: (taskIndex: number, status: 'in-progress' | 'completed' | 'failed') => void
     signal?: AbortSignal
 }
 
@@ -181,6 +184,9 @@ export async function runAgent(options: AgentOptions): Promise<void> {
         onStatusUpdate,
         onMessageAdded,
         onStreamUpdate,
+        onPlanReady,
+        onChecklistInit,
+        onChecklistTaskUpdate,
         signal
     } = options
 
@@ -207,6 +213,8 @@ export async function runAgent(options: AgentOptions): Promise<void> {
 
     let iterations = 0
     let hasPresentedPlan = false
+    let checklistTasks: string[] = []
+    let checklistCursor = 0
 
     while (true) {
         if (signal?.aborted) {
@@ -240,7 +248,37 @@ export async function runAgent(options: AgentOptions): Promise<void> {
             if (superAgentMode && !hasPresentedPlan) {
                 const includesPlanHeader = (assistantMessage.content || '').includes('## Plan')
                 if (!assistantMessage.tool_calls?.length && includesPlanHeader) {
+                    const reviewedPlan = await onPlanReady?.(assistantMessage.content || '')
+                    if (reviewedPlan === null) {
+                        throw new Error('Request stopped by user.')
+                    }
+
+                    const finalPlan = reviewedPlan || assistantMessage.content || ''
+                    const planLines = finalPlan
+                        .split('\n')
+                        .map(line => line.trim())
+                        .filter(line => /^\d+\.\s+/.test(line))
+                        .map(line => line.replace(/^\d+\.\s+/, '').trim())
+
+                    checklistTasks = planLines
+                    checklistCursor = 0
+                    onChecklistInit?.(planLines)
+
+                    const planMsg = await window.api.chats.addMessage(chatId, {
+                        role: 'assistant',
+                        content: finalPlan,
+                        reasoning
+                    })
+                    if (planMsg) onMessageAdded(planMsg)
+
+                    messages.push({
+                        role: 'assistant',
+                        content: finalPlan
+                    })
+
                     hasPresentedPlan = true
+                    onStreamUpdate?.('')
+                    continue
                 }
             }
 
@@ -270,6 +308,10 @@ export async function runAgent(options: AgentOptions): Promise<void> {
                 // Execute tool calls
                 const toolResults: ToolResult[] = []
                 for (const toolCall of toolCalls) {
+                    if (superAgentMode && checklistCursor < checklistTasks.length) {
+                        onChecklistTaskUpdate?.(checklistCursor, 'in-progress')
+                    }
+
                     onStatusUpdate(`Executing: ${toolCall.name}`)
 
                     const result = await executeToolCall(toolCall.name, toolCall.arguments, projectPath)
@@ -278,6 +320,11 @@ export async function runAgent(options: AgentOptions): Promise<void> {
                         result: result.success ? result.data : result.error,
                         error: result.success ? undefined : result.error
                     })
+
+                    if (superAgentMode && checklistCursor < checklistTasks.length) {
+                        onChecklistTaskUpdate?.(checklistCursor, result.success ? 'completed' : 'failed')
+                        checklistCursor++
+                    }
                 }
 
                 // Save tool results as a message
