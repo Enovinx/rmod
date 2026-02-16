@@ -11,10 +11,58 @@ interface SuperAgentPanelProps {
 export default function SuperAgentPanel({ plan, onCancel, variant = 'full', showCancelButton = true }: SuperAgentPanelProps) {
     const completedCount = plan.tasks.filter(t => t.status === 'completed').length
     const progress = plan.tasks.length > 0 ? (completedCount / plan.tasks.length) * 100 : 0
-    const activeTask = plan.tasks.find(task => task.status === 'in-progress')
-    const nextPendingTask = plan.tasks.find(task => task.status === 'pending')
-    const currentTaskLabel = activeTask?.description || nextPendingTask?.description || 'Waiting for next task...'
-    const remainingTasks = plan.tasks.filter(task => task.status === 'pending' || task.status === 'in-progress')
+    const activeTaskIndex = plan.tasks.findIndex(task => task.status === 'in-progress')
+    const nextPendingTaskIndex = plan.tasks.findIndex(task => task.status === 'pending')
+    const displayActiveTaskIndex = activeTaskIndex !== -1 ? activeTaskIndex : nextPendingTaskIndex
+    const currentTaskLabel = displayActiveTaskIndex !== -1
+        ? plan.tasks[displayActiveTaskIndex].description
+        : 'Waiting for next task...'
+
+    const getDisplayStatus = (taskStatus: SuperAgentPlan['tasks'][number]['status'], index: number) => {
+        if (taskStatus === 'pending' && index === displayActiveTaskIndex) {
+            return 'in-progress'
+        }
+
+        return taskStatus
+    }
+
+    const renderTaskIcon = (status: ReturnType<typeof getDisplayStatus>) => {
+        if (status === 'completed') {
+            return (
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                    <path d="M2 6L5 9L10 3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+            )
+        }
+
+        if (status === 'in-progress') {
+            return <div className="spinner spinner-sm" />
+        }
+
+        if (status === 'failed') {
+            return (
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                    <path d="M3 3L9 9M9 3L3 9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                </svg>
+            )
+        }
+
+        return null
+    }
+
+    const renderTaskItem = (task: SuperAgentPlan['tasks'][number], index: number) => {
+        const displayStatus = getDisplayStatus(task.status, index)
+
+        return (
+            <div key={task.id} className={`task-item ${displayStatus}`}>
+                <div className="task-checkbox">{renderTaskIcon(displayStatus)}</div>
+                <div className="task-content">
+                    <span className="task-number">{index + 1}.</span>
+                    <span className="task-description">{task.description}</span>
+                </div>
+            </div>
+        )
+    }
 
     if (variant === 'dock') {
         return (
@@ -40,17 +88,7 @@ export default function SuperAgentPanel({ plan, onCancel, variant = 'full', show
                 <div className="progress-text">{completedCount} of {plan.tasks.length} tasks completed</div>
 
                 <div className="tasks-list dock-tasks-list">
-                    {remainingTasks.map((task, index) => (
-                        <div key={task.id} className={`task-item ${task.status}`}>
-                            <div className="task-checkbox">
-                                {task.status === 'in-progress' ? <div className="spinner spinner-sm" /> : null}
-                            </div>
-                            <div className="task-content">
-                                <span className="task-number">{index + 1}.</span>
-                                <span className="task-description">{task.description}</span>
-                            </div>
-                        </div>
-                    ))}
+                    {plan.tasks.map(renderTaskItem)}
                 </div>
             </div>
         )
@@ -85,29 +123,7 @@ export default function SuperAgentPanel({ plan, onCancel, variant = 'full', show
             </div>
 
             <div className="tasks-list">
-                {plan.tasks.map((task, index) => (
-                    <div key={task.id} className={`task-item ${task.status}`}>
-                        <div className="task-checkbox">
-                            {task.status === 'completed' && (
-                                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                                    <path d="M2 6L5 9L10 3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                                </svg>
-                            )}
-                            {task.status === 'in-progress' && (
-                                <div className="spinner spinner-sm" />
-                            )}
-                            {task.status === 'failed' && (
-                                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                                    <path d="M3 3L9 9M9 3L3 9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                                </svg>
-                            )}
-                        </div>
-                        <div className="task-content">
-                            <span className="task-number">{index + 1}.</span>
-                            <span className="task-description">{task.description}</span>
-                        </div>
-                    </div>
-                ))}
+                {plan.tasks.map(renderTaskItem)}
             </div>
 
             {plan.estimatedCost && (
