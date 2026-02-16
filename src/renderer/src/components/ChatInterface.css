@@ -174,3 +174,54 @@
     padding: 0;
     flex-shrink: 0;
 }
+
+.plan-review-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: var(--spacing-lg);
+}
+
+.plan-review-window {
+    width: min(780px, 100%);
+    background: var(--bg-primary);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-lg);
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+}
+
+.plan-review-window h3 {
+    margin: 0;
+}
+
+.plan-review-window p {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 13px;
+}
+
+.plan-review-input {
+    width: 100%;
+    resize: vertical;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-default);
+    color: var(--text-primary);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-md);
+    font-family: inherit;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.plan-review-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--spacing-sm);
+}
