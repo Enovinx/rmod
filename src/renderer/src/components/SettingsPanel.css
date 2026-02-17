@@ -37,6 +37,25 @@
     font-family: var(--font-mono);
 }
 
+.theme-select-wrap {
+    position: relative;
+}
+
+.theme-select {
+    appearance: none;
+    padding-right: 32px;
+}
+
+.theme-select-wrap::after {
+    content: '▾';
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-muted);
+    pointer-events: none;
+}
+
 .add-preset-form {
     display: flex;
     flex-direction: column;

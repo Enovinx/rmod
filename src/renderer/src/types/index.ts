@@ -57,11 +57,23 @@ export interface ModelPreset {
     maxTokens: number
 }
 
+export type ThemeId =
+    | 'graphite'
+    | 'midnight'
+    | 'nord'
+    | 'sunset'
+    | 'forest'
+    | 'ocean'
+    | 'rose'
+    | 'amber'
+    | 'violet'
+    | 'terminal'
+
 export interface Settings {
     openRouterKey: string
     activeModelPreset: string
     modelPresets: ModelPreset[]
-    theme: 'dark' | 'light'
+    theme: ThemeId
     hasCompletedSetup: boolean
 }
 
