@@ -13,6 +13,7 @@ function createWindow(): void {
         autoHideMenuBar: true,
         backgroundColor: '#0a0a0f',
         titleBarStyle: 'hidden',
+        icon: join(__dirname, '../../resources/icon.png'),
         titleBarOverlay: {
             color: '#0a0a0f',
             symbolColor: '#ffffff',
