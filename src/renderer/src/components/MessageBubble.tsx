@@ -106,6 +106,21 @@ function parseMarkdownSegments(content: string): MarkdownSegment[] {
     return segments
 }
 
+const markdownComponents = {
+    code({ inline, className, children, ...props }: any) {
+        const match = /language-(\w+)/.exec(className || '')
+        return !inline && match ? (
+            <code className={className} {...props}>
+                {children}
+            </code>
+        ) : (
+            <code className="inline-code" {...props}>
+                {children}
+            </code>
+        )
+    }
+}
+
 export default function MessageBubble({ message, showAvatar = true }: MessageBubbleProps) {
     const isUser = message.role === 'user'
     const isTool = message.role === 'tool'
@@ -158,20 +173,7 @@ export default function MessageBubble({ message, showAvatar = true }: MessageBub
                                 <ReactMarkdown
                                     key={`content-markdown-${index}`}
                                     rehypePlugins={[rehypeHighlight]}
-                                    components={{
-                                        code({ inline, className, children, ...props }: any) {
-                                            const match = /language-(\w+)/.exec(className || '')
-                                            return !inline && match ? (
-                                                <code className={className} {...props}>
-                                                    {children}
-                                                </code>
-                                            ) : (
-                                                <code className="inline-code" {...props}>
-                                                    {children}
-                                                </code>
-                                            )
-                                        }
-                                    }}
+                                    components={markdownComponents}
                                 >
                                     {segment.content}
                                 </ReactMarkdown>
@@ -180,7 +182,9 @@ export default function MessageBubble({ message, showAvatar = true }: MessageBub
                                     <thead>
                                         <tr>
                                             {segment.headers.map((header, cellIndex) => (
-                                                <th key={`content-header-${cellIndex}`}>{header}</th>
+                                                <th key={`content-header-${cellIndex}`}>
+                                                    <ReactMarkdown components={markdownComponents}>{header}</ReactMarkdown>
+                                                </th>
                                             ))}
                                         </tr>
                                     </thead>
@@ -188,7 +192,9 @@ export default function MessageBubble({ message, showAvatar = true }: MessageBub
                                         {segment.rows.map((row, rowIndex) => (
                                             <tr key={`content-row-${rowIndex}`}>
                                                 {row.map((cell, cellIndex) => (
-                                                    <td key={`content-cell-${rowIndex}-${cellIndex}`}>{cell}</td>
+                                                    <td key={`content-cell-${rowIndex}-${cellIndex}`}>
+                                                        <ReactMarkdown components={markdownComponents}>{cell}</ReactMarkdown>
+                                                    </td>
                                                 ))}
                                             </tr>
                                         ))}
@@ -253,13 +259,19 @@ export default function MessageBubble({ message, showAvatar = true }: MessageBub
                         <div className="thinking-content">
                             {formattedThinking.map((segment, index) =>
                                 segment.type === 'markdown' ? (
-                                    <ReactMarkdown key={`thinking-markdown-${index}`}>{segment.content}</ReactMarkdown>
+                                    <ReactMarkdown
+                                    key={`thinking-markdown-${index}`}
+                                    rehypePlugins={[rehypeHighlight]}
+                                    components={markdownComponents}
+                                >
+                                    {segment.content}
+                                </ReactMarkdown>
                                 ) : (
                                     <table key={`thinking-table-${index}`}>
                                         <thead>
                                             <tr>
                                                 {segment.headers.map((header, cellIndex) => (
-                                                    <th key={`thinking-header-${cellIndex}`}>{header}</th>
+                                                    <th key={`thinking-header-${cellIndex}`}><ReactMarkdown components={markdownComponents}>{header}</ReactMarkdown></th>
                                                 ))}
                                             </tr>
                                         </thead>
@@ -267,7 +279,7 @@ export default function MessageBubble({ message, showAvatar = true }: MessageBub
                                             {segment.rows.map((row, rowIndex) => (
                                                 <tr key={`thinking-row-${rowIndex}`}>
                                                     {row.map((cell, cellIndex) => (
-                                                        <td key={`thinking-cell-${rowIndex}-${cellIndex}`}>{cell}</td>
+                                                        <td key={`thinking-cell-${rowIndex}-${cellIndex}`}><ReactMarkdown components={markdownComponents}>{cell}</ReactMarkdown></td>
                                                     ))}
                                                 </tr>
                                             ))}
