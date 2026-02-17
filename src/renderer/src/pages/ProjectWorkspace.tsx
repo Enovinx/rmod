@@ -5,6 +5,7 @@ import ChatSidebar from '../components/ChatSidebar'
 import ChatInterface from '../components/ChatInterface'
 import FileExplorer from '../components/FileExplorer'
 import SettingsPanel from '../components/SettingsPanel'
+import { applyTheme } from '../theme'
 import './ProjectWorkspace.css'
 
 export default function ProjectWorkspace() {
@@ -55,6 +56,14 @@ export default function ProjectWorkspace() {
 
     const loadSettings = async () => {
         const s = await window.api.settings.get()
+        const normalizedTheme = applyTheme(s.theme)
+
+        if (normalizedTheme !== s.theme) {
+            const migrated = await window.api.settings.set({ theme: normalizedTheme })
+            setSettings(migrated)
+            return
+        }
+
         setSettings(s)
     }
 
@@ -98,6 +107,7 @@ export default function ProjectWorkspace() {
 
     const handleSettingsChange = async (updates: Partial<Settings>) => {
         const updated = await window.api.settings.set(updates)
+        applyTheme(updated.theme)
         setSettings(updated)
     }
 

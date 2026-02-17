@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { Settings, ModelPreset } from '../types'
+import { THEME_OPTIONS } from '../theme'
 import './SettingsPanel.css'
 
 interface SettingsPanelProps {
@@ -104,6 +105,25 @@ export default function SettingsPanel({ settings, onChange, onClose }: SettingsP
                                 Get your API key →
                             </a>
                         </p>
+                    </section>
+
+                    {/* Model Presets */}
+                    <section className="settings-section">
+                        <h3>Theme</h3>
+                        <div className="theme-select-wrap">
+                            <select
+                                className="input theme-select"
+                                value={settings.theme}
+                                onChange={e => onChange({ theme: e.target.value as Settings['theme'] })}
+                            >
+                                {THEME_OPTIONS.map(theme => (
+                                    <option key={theme.id} value={theme.id}>
+                                        {theme.name}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                        <p className="form-hint">Pick from 10 unique themes to customize your workspace.</p>
                     </section>
 
                     {/* Model Presets */}
