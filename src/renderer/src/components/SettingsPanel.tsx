@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Settings, ModelPreset } from '../types'
 import { THEME_OPTIONS } from '../theme'
 import ActionDialog from './ActionDialog'
@@ -16,6 +16,33 @@ export default function SettingsPanel({ settings, onChange, onClose }: SettingsP
     const [newPresetModel, setNewPresetModel] = useState('')
     const [showAddPreset, setShowAddPreset] = useState(false)
     const [showWipeConfirm, setShowWipeConfirm] = useState(false)
+    const [showThemeDropdown, setShowThemeDropdown] = useState(false)
+    const themeDropdownRef = useRef<HTMLDivElement>(null)
+
+    const selectedTheme = THEME_OPTIONS.find(theme => theme.id === settings.theme) ?? THEME_OPTIONS[0]
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (!themeDropdownRef.current) return
+            if (!themeDropdownRef.current.contains(event.target as Node)) {
+                setShowThemeDropdown(false)
+            }
+        }
+
+        const handleEscape = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                setShowThemeDropdown(false)
+            }
+        }
+
+        document.addEventListener('mousedown', handleClickOutside)
+        document.addEventListener('keydown', handleEscape)
+
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside)
+            document.removeEventListener('keydown', handleEscape)
+        }
+    }, [])
 
     const handleApiKeyChange = (key: string) => {
         onChange({ openRouterKey: key })
@@ -112,18 +139,37 @@ export default function SettingsPanel({ settings, onChange, onClose }: SettingsP
                     {/* Model Presets */}
                     <section className="settings-section">
                         <h3>Theme</h3>
-                        <div className="theme-select-wrap">
-                            <select
-                                className="input theme-select"
-                                value={settings.theme}
-                                onChange={e => onChange({ theme: e.target.value as Settings['theme'] })}
+                        <div className="theme-select-wrap" ref={themeDropdownRef}>
+                            <button
+                                className={`input theme-select-button ${showThemeDropdown ? 'open' : ''}`}
+                                type="button"
+                                onClick={() => setShowThemeDropdown(!showThemeDropdown)}
+                                aria-haspopup="listbox"
+                                aria-expanded={showThemeDropdown}
                             >
-                                {THEME_OPTIONS.map(theme => (
-                                    <option key={theme.id} value={theme.id}>
-                                        {theme.name}
-                                    </option>
-                                ))}
-                            </select>
+                                <span>{selectedTheme.name}</span>
+                                <span className="theme-select-chevron" aria-hidden="true" />
+                            </button>
+
+                            {showThemeDropdown && (
+                                <div className="theme-dropdown" role="listbox" aria-label="Select theme">
+                                    {THEME_OPTIONS.map(theme => (
+                                        <button
+                                            key={theme.id}
+                                            type="button"
+                                            className={`theme-dropdown-item ${theme.id === settings.theme ? 'active' : ''}`}
+                                            role="option"
+                                            aria-selected={theme.id === settings.theme}
+                                            onClick={() => {
+                                                onChange({ theme: theme.id as Settings['theme'] })
+                                                setShowThemeDropdown(false)
+                                            }}
+                                        >
+                                            {theme.name}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                         <p className="form-hint">Pick from 10 unique themes to customize your workspace.</p>
                     </section>
