@@ -50,33 +50,56 @@
     line-height: 1.6;
 }
 
-.message-text + .message-steps {
+.message-text+.message-steps {
     margin-top: var(--spacing-sm);
 }
 
 .message-text p {
     margin: 0;
+    margin-bottom: var(--spacing-xs);
 }
 
-.message-text .md-h1 {
+.message-text p:last-child {
+    margin-bottom: 0;
+}
+
+.message-text h1 {
     font-size: 16px;
     font-weight: 600;
     margin: var(--spacing-md) 0 var(--spacing-sm);
 }
 
-.message-text .md-h2 {
+.message-text h2 {
     font-size: 14px;
     font-weight: 600;
     margin: var(--spacing-sm) 0;
 }
 
-.message-text .md-li {
-    margin-left: var(--spacing-lg);
-    list-style-type: disc;
+.message-text ul,
+.message-text ol {
+    margin: var(--spacing-sm) 0;
+    padding-left: var(--spacing-xl);
 }
 
-.message-text .md-p {
+.message-text ul:last-child,
+.message-text ol:last-child {
+    margin-bottom: 0;
+}
+
+.message-text li {
     margin-bottom: var(--spacing-xs);
+}
+
+.message-text li:last-child {
+    margin-bottom: 0;
+}
+
+.message-text li::marker {
+    color: var(--accent-primary);
+}
+
+.user-message .message-text li::marker {
+    color: white;
 }
 
 .inline-code {
@@ -166,7 +189,7 @@
     margin: 0;
 }
 
-.thinking-content p + p {
+.thinking-content p+p {
     margin-top: var(--spacing-xs);
 }
 

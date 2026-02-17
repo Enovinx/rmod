@@ -62,17 +62,18 @@ interface Settings {
     activeModelPreset: string
     modelPresets: ModelPreset[]
     theme:
-        | 'graphite'
-        | 'midnight'
-        | 'nord'
-        | 'sunset'
-        | 'forest'
-        | 'ocean'
-        | 'rose'
-        | 'amber'
-        | 'violet'
-        | 'terminal'
+    | 'graphite'
+    | 'midnight'
+    | 'nord'
+    | 'sunset'
+    | 'forest'
+    | 'ocean'
+    | 'rose'
+    | 'amber'
+    | 'violet'
+    | 'terminal'
     hasCompletedSetup: boolean
+    hasSeenModelWalkthrough: boolean
 }
 
 let store: Store<{
@@ -95,32 +96,33 @@ export function registerIpcHandlers(): void {
             checkpoints: [],
             settings: {
                 openRouterKey: '',
-                activeModelPreset: 'default',
+                activeModelPreset: 'balanced',
                 modelPresets: [
                     {
-                        id: 'default',
-                        name: 'Default (Claude 3.5 Sonnet)',
-                        modelId: 'anthropic/claude-3.5-sonnet',
+                        id: 'powerful',
+                        name: 'GLM-5 (Powerful)',
+                        modelId: 'z-ai/glm-5',
                         temperature: 0.7,
-                        maxTokens: 4096
+                        maxTokens: 16384
+                    },
+                    {
+                        id: 'balanced',
+                        name: 'MiniMax M2.5 (Balanced)',
+                        modelId: 'minimax/minimax-m2.5',
+                        temperature: 0.7,
+                        maxTokens: 16384
                     },
                     {
                         id: 'fast',
-                        name: 'Fast (Claude 3 Haiku)',
-                        modelId: 'anthropic/claude-3-haiku',
+                        name: 'Gemini 3 Flash (Fast)',
+                        modelId: 'google/gemini-3-flash-preview',
                         temperature: 0.7,
-                        maxTokens: 4096
-                    },
-                    {
-                        id: 'powerful',
-                        name: 'Powerful (Claude 3 Opus)',
-                        modelId: 'anthropic/claude-3-opus',
-                        temperature: 0.7,
-                        maxTokens: 4096
+                        maxTokens: 16384
                     }
                 ],
                 theme: 'graphite',
-                hasCompletedSetup: false
+                hasCompletedSetup: false,
+                hasSeenModelWalkthrough: false
             }
         }
     })

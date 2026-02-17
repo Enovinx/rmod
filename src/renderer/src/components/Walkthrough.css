@@ -1,0 +1,99 @@
+.walkthrough-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 9999;
+    background: rgba(0, 0, 0, 0.4);
+    animation: fadeIn 0.3s ease-out;
+}
+
+.walkthrough-highlight {
+    position: absolute;
+    border-radius: 12px;
+    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.4), 0 0 20px var(--accent-primary);
+    border: 3px solid var(--accent-primary);
+    pointer-events: none;
+    transition: all 0.3s ease;
+    animation: pulse 2s infinite;
+    background: transparent;
+}
+
+.walkthrough-tooltip {
+    position: absolute;
+    width: 320px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-lg);
+    box-shadow: var(--shadow-xl), 0 0 0 1px var(--border-subtle);
+    animation: slideUp 0.3s ease-out;
+    color: var(--text-primary);
+}
+
+.walkthrough-tooltip h3 {
+    margin: 0 0 var(--spacing-sm) 0;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--accent-primary);
+}
+
+.walkthrough-tooltip p {
+    margin: 0 0 var(--spacing-lg) 0;
+    font-size: 0.95rem;
+    line-height: 1.6;
+    color: var(--text-secondary);
+}
+
+.tooltip-arrow {
+    position: absolute;
+    top: -6px;
+    width: 12px;
+    height: 12px;
+    background: var(--bg-elevated);
+    border-left: 1px solid var(--border-default);
+    border-top: 1px solid var(--border-default);
+    transform: rotate(45deg);
+}
+
+.walkthrough-tooltip .btn-primary {
+    /* Use global btn-primary styles but ensure it's sized correctly */
+    min-width: 80px;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes pulse {
+    0% {
+        box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.4), 0 0 10px var(--accent-primary);
+    }
+
+    50% {
+        box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.4), 0 0 20px var(--accent-primary);
+    }
+
+    100% {
+        box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.4), 0 0 10px var(--accent-primary);
+    }
+}
