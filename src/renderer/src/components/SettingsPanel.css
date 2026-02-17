@@ -41,10 +41,15 @@
     position: relative;
 }
 
-.theme-select {
-    appearance: none;
+.theme-select-button {
     width: 100%;
-    padding-right: 44px;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-sm);
+    padding-right: 14px;
+    text-align: left;
     border-radius: 12px;
     border: 1px solid var(--border-default);
     background:
@@ -53,13 +58,15 @@
     box-shadow: inset 0 1px 0 color-mix(in srgb, var(--bg-hover) 30%, transparent);
     font-weight: 500;
     transition: border-color var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast);
+    cursor: pointer;
 }
 
-.theme-select:hover {
+.theme-select-button:hover {
     border-color: var(--border-hover);
 }
 
-.theme-select:focus {
+.theme-select-button:focus,
+.theme-select-button.open {
     border-color: var(--accent-primary);
     box-shadow:
         0 0 0 3px color-mix(in srgb, var(--accent-primary) 22%, transparent),
@@ -67,24 +74,57 @@
     transform: translateY(-1px);
 }
 
-.theme-select-wrap::after {
-    content: '';
-    position: absolute;
-    right: 14px;
-    top: 50%;
-    transform: translateY(-50%);
+.theme-select-chevron {
     width: 10px;
     height: 10px;
     border-right: 2px solid var(--text-muted);
     border-bottom: 2px solid var(--text-muted);
-    transform: translateY(-70%) rotate(45deg);
+    transform: translateY(-2px) rotate(45deg);
     transition: border-color var(--transition-fast), transform var(--transition-fast);
-    pointer-events: none;
 }
 
-.theme-select-wrap:focus-within::after {
+.theme-select-button.open .theme-select-chevron {
     border-color: var(--accent-primary);
-    transform: translateY(-55%) rotate(45deg);
+    transform: translateY(1px) rotate(225deg);
+}
+
+.theme-dropdown {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 0;
+    right: 0;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-default);
+    border-radius: 12px;
+    box-shadow: var(--shadow-lg);
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    z-index: 20;
+    max-height: 220px;
+    overflow-y: auto;
+}
+
+.theme-dropdown-item {
+    border: 0;
+    background: transparent;
+    color: var(--text-primary);
+    padding: 8px 10px;
+    border-radius: 8px;
+    text-align: left;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+.theme-dropdown-item:hover {
+    background: var(--bg-hover);
+}
+
+.theme-dropdown-item.active {
+    background: color-mix(in srgb, var(--accent-primary) 35%, transparent);
+    color: var(--text-primary);
 }
 
 .add-preset-form {
