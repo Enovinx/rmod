@@ -75,6 +75,7 @@ export interface Settings {
     modelPresets: ModelPreset[]
     theme: ThemeId
     hasCompletedSetup: boolean
+    hasSeenModelWalkthrough: boolean
 }
 
 // File system

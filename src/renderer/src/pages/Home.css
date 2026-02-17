@@ -43,6 +43,12 @@
     margin-bottom: var(--spacing-xl);
 }
 
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
 .home-loading {
     display: flex;
     align-items: center;
