@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import type { Checkpoint } from '../types'
+import ActionDialog from './ActionDialog'
 import './CheckpointViewer.css'
 
 interface CheckpointViewerProps {
@@ -13,6 +14,9 @@ export default function CheckpointViewer({ chatId, projectPath, onClose, onResto
     const [checkpoints, setCheckpoints] = useState<Checkpoint[]>([])
     const [loading, setLoading] = useState(true)
     const [restoring, setRestoring] = useState<string | null>(null)
+    const [checkpointToRestore, setCheckpointToRestore] = useState<Checkpoint | null>(null)
+    const [checkpointPendingDelete, setCheckpointPendingDelete] = useState<string | null>(null)
+    const [restoreError, setRestoreError] = useState<string | null>(null)
 
     useEffect(() => {
         loadCheckpoints()
@@ -32,27 +36,39 @@ export default function CheckpointViewer({ chatId, projectPath, onClose, onResto
     }
 
     const handleRestore = async (checkpoint: Checkpoint) => {
-        if (!confirm('Restore this checkpoint? Current file changes will be overwritten.')) return
+        setCheckpointToRestore(checkpoint)
+    }
 
+    const confirmRestore = async () => {
+        if (!checkpointToRestore) return
+
+        const checkpoint = checkpointToRestore
         setRestoring(checkpoint.id)
         try {
             const result = await window.api.checkpoints.restore(checkpoint.id, projectPath)
             if (result.success) {
+                setCheckpointToRestore(null)
                 onRestore()
             } else {
-                alert(`Failed to restore: ${result.error}`)
+                setRestoreError(`Failed to restore: ${result.error}`)
             }
         } catch (error) {
             console.error('Failed to restore:', error)
+            setRestoreError('Failed to restore checkpoint. Please try again.')
         } finally {
             setRestoring(null)
         }
     }
 
     const handleDelete = async (checkpointId: string) => {
-        if (!confirm('Delete this checkpoint?')) return
-        await window.api.checkpoints.delete(checkpointId)
-        setCheckpoints(prev => prev.filter(cp => cp.id !== checkpointId))
+        setCheckpointPendingDelete(checkpointId)
+    }
+
+    const confirmDelete = async () => {
+        if (!checkpointPendingDelete) return
+        await window.api.checkpoints.delete(checkpointPendingDelete)
+        setCheckpoints(prev => prev.filter(cp => cp.id !== checkpointPendingDelete))
+        setCheckpointPendingDelete(null)
     }
 
     const formatDate = (dateStr: string) => {
@@ -141,6 +157,38 @@ export default function CheckpointViewer({ chatId, projectPath, onClose, onResto
                     </span>
                 </div>
             </div>
+
+            {checkpointToRestore && (
+                <ActionDialog
+                    title="Restore checkpoint?"
+                    message="Current file changes will be overwritten with this saved checkpoint."
+                    confirmLabel="Restore"
+                    onCancel={() => setCheckpointToRestore(null)}
+                    onConfirm={confirmRestore}
+                />
+            )}
+
+            {checkpointPendingDelete && (
+                <ActionDialog
+                    title="Delete checkpoint?"
+                    message="This checkpoint will be permanently removed."
+                    confirmLabel="Delete"
+                    danger
+                    onCancel={() => setCheckpointPendingDelete(null)}
+                    onConfirm={confirmDelete}
+                />
+            )}
+
+            {restoreError && (
+                <ActionDialog
+                    title="Restore failed"
+                    message={restoreError}
+                    confirmLabel="OK"
+                    showCancel={false}
+                    onCancel={() => setRestoreError(null)}
+                    onConfirm={() => setRestoreError(null)}
+                />
+            )}
         </div>
     )
 }

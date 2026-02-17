@@ -43,17 +43,48 @@
 
 .theme-select {
     appearance: none;
-    padding-right: 32px;
+    width: 100%;
+    padding-right: 44px;
+    border-radius: 12px;
+    border: 1px solid var(--border-default);
+    background:
+        linear-gradient(var(--bg-elevated), var(--bg-elevated)) padding-box,
+        linear-gradient(135deg, color-mix(in srgb, var(--accent-primary) 28%, transparent), transparent) border-box;
+    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--bg-hover) 30%, transparent);
+    font-weight: 500;
+    transition: border-color var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast);
+}
+
+.theme-select:hover {
+    border-color: var(--border-hover);
+}
+
+.theme-select:focus {
+    border-color: var(--accent-primary);
+    box-shadow:
+        0 0 0 3px color-mix(in srgb, var(--accent-primary) 22%, transparent),
+        var(--shadow-md);
+    transform: translateY(-1px);
 }
 
 .theme-select-wrap::after {
-    content: '▾';
+    content: '';
     position: absolute;
-    right: 12px;
+    right: 14px;
     top: 50%;
     transform: translateY(-50%);
-    color: var(--text-muted);
+    width: 10px;
+    height: 10px;
+    border-right: 2px solid var(--text-muted);
+    border-bottom: 2px solid var(--text-muted);
+    transform: translateY(-70%) rotate(45deg);
+    transition: border-color var(--transition-fast), transform var(--transition-fast);
     pointer-events: none;
+}
+
+.theme-select-wrap:focus-within::after {
+    border-color: var(--accent-primary);
+    transform: translateY(-55%) rotate(45deg);
 }
 
 .add-preset-form {
