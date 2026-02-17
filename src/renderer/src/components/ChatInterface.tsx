@@ -286,6 +286,34 @@ export default function ChatInterface({
         return merged
     }, [chat.messages])
 
+    const renderedMessages = useMemo(() => {
+        if (!isRunning || !streamingContent || pendingPlan !== null) {
+            return displayMessages
+        }
+
+        const messagesWithStreaming = [...displayMessages]
+        const lastMessage = messagesWithStreaming[messagesWithStreaming.length - 1]
+
+        if (lastMessage?.role === 'assistant') {
+            messagesWithStreaming[messagesWithStreaming.length - 1] = {
+                ...lastMessage,
+                content: streamingContent,
+                isStreaming: true
+            }
+            return messagesWithStreaming
+        }
+
+        messagesWithStreaming.push({
+            id: 'streaming-preview',
+            role: 'assistant',
+            content: streamingContent,
+            timestamp: new Date().toISOString(),
+            isStreaming: true
+        })
+
+        return messagesWithStreaming
+    }, [displayMessages, isRunning, pendingPlan, streamingContent])
+
     const handleSuggestionClick = (text: string) => {
         setInput(text)
         requestAnimationFrame(() => textareaRef.current?.focus())
@@ -359,8 +387,8 @@ export default function ChatInterface({
                         </div>
                     </div>
                 ) : (
-                    displayMessages.map((message, index) => {
-                        const previous = displayMessages[index - 1]
+                    renderedMessages.map((message, index) => {
+                        const previous = renderedMessages[index - 1]
                         const showAvatar = message.role === 'assistant' && (!previous || previous.role !== 'assistant')
                         return (
                             <MessageBubble
@@ -378,19 +406,6 @@ export default function ChatInterface({
                         <span>{currentAction}</span>
                         <button type="button" className="btn btn-sm btn-ghost" onClick={handleStop}>Stop</button>
                     </div>
-                )}
-
-                {isRunning && streamingContent && pendingPlan === null && (
-                    <MessageBubble
-                        message={{
-                            id: 'streaming-preview',
-                            role: 'assistant',
-                            content: streamingContent,
-                            timestamp: new Date().toISOString(),
-                            isStreaming: true
-                        }}
-                        showAvatar={false}
-                    />
                 )}
 
                 <div ref={messagesEndRef} />
