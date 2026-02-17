@@ -13,6 +13,10 @@ interface MessageBubbleProps {
 const TABLE_ROW_REGEX = /^\s*\|.*\|\s*$/
 const TABLE_DIVIDER_REGEX = /^\s*\|?(?:\s*:?-{3,}:?\s*\|)+\s*:?-{3,}:?\s*\|?\s*$/
 
+type MarkdownSegment =
+    | { type: 'markdown'; content: string }
+    | { type: 'table'; headers: string[]; rows: string[][] }
+
 function splitTableCells(row: string): string[] {
     return row
         .trim()
@@ -22,23 +26,59 @@ function splitTableCells(row: string): string[] {
         .map(cell => cell.trim())
 }
 
-function formatMarkdownTables(content: string): string {
+function normalizeCollapsedTableBlocks(content: string): string {
     const lines = content.split('\n')
     const normalized: string[] = []
+    let isInCodeFence = false
+
+    lines.forEach(line => {
+        if (line.trim().startsWith('```')) {
+            isInCodeFence = !isInCodeFence
+            normalized.push(line)
+            return
+        }
+
+        if (!isInCodeFence && line.includes('||') && line.includes('|')) {
+            normalized.push(...line.split(/\s*\|\|\s*/))
+            return
+        }
+
+        normalized.push(line)
+    })
+
+    return normalized.join('\n')
+}
+
+function parseMarkdownSegments(content: string): MarkdownSegment[] {
+    const normalizedContent = normalizeCollapsedTableBlocks(content)
+    const lines = normalizedContent.split('\n')
+    const segments: MarkdownSegment[] = []
+    const markdownBuffer: string[] = []
     let index = 0
     let isInCodeFence = false
+
+    const flushMarkdownBuffer = () => {
+        if (markdownBuffer.length === 0) {
+            return
+        }
+
+        segments.push({ type: 'markdown', content: markdownBuffer.join('\n').trimEnd() })
+        markdownBuffer.length = 0
+    }
 
     while (index < lines.length) {
         const line = lines[index]
 
         if (line.trim().startsWith('```')) {
             isInCodeFence = !isInCodeFence
-            normalized.push(line)
+            markdownBuffer.push(line)
             index += 1
             continue
         }
 
         if (!isInCodeFence && index + 1 < lines.length && TABLE_ROW_REGEX.test(line) && TABLE_DIVIDER_REGEX.test(lines[index + 1])) {
+            flushMarkdownBuffer()
+
             const headers = splitTableCells(line)
             const columnCount = headers.length
             const rows: string[][] = []
@@ -53,19 +93,17 @@ function formatMarkdownTables(content: string): string {
                 index += 1
             }
 
-            normalized.push(`| ${headers.join(' | ')} |`)
-            normalized.push(`| ${headers.map(() => '---').join(' | ')} |`)
-            rows.forEach(row => {
-                normalized.push(`| ${row.join(' | ')} |`)
-            })
+            segments.push({ type: 'table', headers, rows })
             continue
         }
 
-        normalized.push(line)
+        markdownBuffer.push(line)
         index += 1
     }
 
-    return normalized.join('\n')
+    flushMarkdownBuffer()
+
+    return segments
 }
 
 export default function MessageBubble({ message, showAvatar = true }: MessageBubbleProps) {
@@ -80,8 +118,8 @@ export default function MessageBubble({ message, showAvatar = true }: MessageBub
     const hasToolResults = Boolean(message.toolResults && message.toolResults.length > 0)
     const composedThinking = message.reasoning?.trim() || ''
     const hasThinking = Boolean(composedThinking)
-    const formattedContent = useMemo(() => formatMarkdownTables(message.content || ''), [message.content])
-    const formattedThinking = useMemo(() => formatMarkdownTables(composedThinking), [composedThinking])
+    const formattedContent = useMemo(() => parseMarkdownSegments(message.content || ''), [message.content])
+    const formattedThinking = useMemo(() => parseMarkdownSegments(composedThinking), [composedThinking])
 
     useEffect(() => {
         if (hasThinking) {
@@ -115,25 +153,49 @@ export default function MessageBubble({ message, showAvatar = true }: MessageBub
             <div className="message-content">
                 {hasText && (
                     <div className="message-text">
-                        <ReactMarkdown
-                            rehypePlugins={[rehypeHighlight]}
-                            components={{
-                                code({ inline, className, children, ...props }: any) {
-                                    const match = /language-(\w+)/.exec(className || '')
-                                    return !inline && match ? (
-                                        <code className={className} {...props}>
-                                            {children}
-                                        </code>
-                                    ) : (
-                                        <code className="inline-code" {...props}>
-                                            {children}
-                                        </code>
-                                    )
-                                }
-                            }}
-                        >
-                            {formattedContent}
-                        </ReactMarkdown>
+                        {formattedContent.map((segment, index) =>
+                            segment.type === 'markdown' ? (
+                                <ReactMarkdown
+                                    key={`content-markdown-${index}`}
+                                    rehypePlugins={[rehypeHighlight]}
+                                    components={{
+                                        code({ inline, className, children, ...props }: any) {
+                                            const match = /language-(\w+)/.exec(className || '')
+                                            return !inline && match ? (
+                                                <code className={className} {...props}>
+                                                    {children}
+                                                </code>
+                                            ) : (
+                                                <code className="inline-code" {...props}>
+                                                    {children}
+                                                </code>
+                                            )
+                                        }
+                                    }}
+                                >
+                                    {segment.content}
+                                </ReactMarkdown>
+                            ) : (
+                                <table key={`content-table-${index}`}>
+                                    <thead>
+                                        <tr>
+                                            {segment.headers.map((header, cellIndex) => (
+                                                <th key={`content-header-${cellIndex}`}>{header}</th>
+                                            ))}
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {segment.rows.map((row, rowIndex) => (
+                                            <tr key={`content-row-${rowIndex}`}>
+                                                {row.map((cell, cellIndex) => (
+                                                    <td key={`content-cell-${rowIndex}-${cellIndex}`}>{cell}</td>
+                                                ))}
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            )
+                        )}
                     </div>
                 )}
 
@@ -189,7 +251,30 @@ export default function MessageBubble({ message, showAvatar = true }: MessageBub
                     <div className="thinking-panel">
                         <div className="thinking-header">Thinking</div>
                         <div className="thinking-content">
-                            <ReactMarkdown>{formattedThinking}</ReactMarkdown>
+                            {formattedThinking.map((segment, index) =>
+                                segment.type === 'markdown' ? (
+                                    <ReactMarkdown key={`thinking-markdown-${index}`}>{segment.content}</ReactMarkdown>
+                                ) : (
+                                    <table key={`thinking-table-${index}`}>
+                                        <thead>
+                                            <tr>
+                                                {segment.headers.map((header, cellIndex) => (
+                                                    <th key={`thinking-header-${cellIndex}`}>{header}</th>
+                                                ))}
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {segment.rows.map((row, rowIndex) => (
+                                                <tr key={`thinking-row-${rowIndex}`}>
+                                                    {row.map((cell, cellIndex) => (
+                                                        <td key={`thinking-cell-${rowIndex}-${cellIndex}`}>{cell}</td>
+                                                    ))}
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                )
+                            )}
                         </div>
                     </div>
                 )}
