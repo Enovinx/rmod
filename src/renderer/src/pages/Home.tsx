@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import type { Project } from '../types'
 import ProjectCard from '../components/ProjectCard'
 import CreateProjectModal from '../components/CreateProjectModal'
+import ActionDialog from '../components/ActionDialog'
 import './Home.css'
 
 export default function Home() {
@@ -10,6 +11,7 @@ export default function Home() {
     const [projects, setProjects] = useState<Project[]>([])
     const [loading, setLoading] = useState(true)
     const [showCreateModal, setShowCreateModal] = useState(false)
+    const [projectPendingDelete, setProjectPendingDelete] = useState<string | null>(null)
 
     useEffect(() => {
         loadProjects()
@@ -50,10 +52,14 @@ export default function Home() {
     }
 
     const handleDeleteProject = async (projectId: string) => {
-        if (confirm('Are you sure you want to delete this project? Chat history will also be deleted.')) {
-            await window.api.projects.delete(projectId)
-            setProjects(prev => prev.filter(p => p.id !== projectId))
-        }
+        setProjectPendingDelete(projectId)
+    }
+
+    const confirmDeleteProject = async () => {
+        if (!projectPendingDelete) return
+        await window.api.projects.delete(projectPendingDelete)
+        setProjects(prev => prev.filter(p => p.id !== projectPendingDelete))
+        setProjectPendingDelete(null)
     }
 
     return (
@@ -120,6 +126,17 @@ export default function Home() {
                 <CreateProjectModal
                     onClose={() => setShowCreateModal(false)}
                     onCreate={handleCreateProject}
+                />
+            )}
+
+            {projectPendingDelete && (
+                <ActionDialog
+                    title="Delete project?"
+                    message="Are you sure you want to delete this project? Chat history will also be deleted."
+                    confirmLabel="Delete"
+                    danger
+                    onCancel={() => setProjectPendingDelete(null)}
+                    onConfirm={confirmDeleteProject}
                 />
             )}
         </div>

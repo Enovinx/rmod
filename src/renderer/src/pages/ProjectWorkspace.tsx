@@ -5,6 +5,7 @@ import ChatSidebar from '../components/ChatSidebar'
 import ChatInterface from '../components/ChatInterface'
 import FileExplorer from '../components/FileExplorer'
 import SettingsPanel from '../components/SettingsPanel'
+import ActionDialog from '../components/ActionDialog'
 import { applyTheme } from '../theme'
 import './ProjectWorkspace.css'
 
@@ -20,6 +21,7 @@ export default function ProjectWorkspace() {
 
     const [showFileExplorer, setShowFileExplorer] = useState(false)
     const [showSettings, setShowSettings] = useState(false)
+    const [chatPendingDelete, setChatPendingDelete] = useState<string | null>(null)
 
     useEffect(() => {
         if (projectId) {
@@ -92,12 +94,18 @@ export default function ProjectWorkspace() {
     }
 
     const handleDeleteChat = async (chatId: string) => {
-        if (!confirm('Delete this chat?')) return
+        setChatPendingDelete(chatId)
+    }
+
+    const confirmDeleteChat = async () => {
+        if (!chatPendingDelete) return
+        const chatId = chatPendingDelete
         await window.api.chats.delete(chatId)
         setChats(prev => prev.filter(c => c.id !== chatId))
         if (currentChat?.id === chatId) {
             navigate(`/project/${project?.id}`)
         }
+        setChatPendingDelete(null)
     }
 
     const handleChatUpdate = (updatedChat: Chat) => {
@@ -247,6 +255,17 @@ export default function ProjectWorkspace() {
                     settings={settings}
                     onChange={handleSettingsChange}
                     onClose={() => setShowSettings(false)}
+                />
+            )}
+
+            {chatPendingDelete && (
+                <ActionDialog
+                    title="Delete chat?"
+                    message="This chat and all of its messages will be removed."
+                    confirmLabel="Delete"
+                    danger
+                    onCancel={() => setChatPendingDelete(null)}
+                    onConfirm={confirmDeleteChat}
                 />
             )}
         </div>
