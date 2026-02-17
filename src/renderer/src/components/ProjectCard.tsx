@@ -42,6 +42,16 @@ export default function ProjectCard({ project, onOpen, onDelete, style }: Projec
         return path.split(/[/\\]/).pop() || path
     }
 
+    const getChatPreviewTitle = (chat: Chat) => {
+        const firstUserMessage = chat.messages.find((message) => message.role === 'user' && message.content.trim().length > 0)
+        if (firstUserMessage) {
+            const preview = firstUserMessage.content.trim()
+            return preview.slice(0, 50) + (preview.length > 50 ? '...' : '')
+        }
+
+        return chat.title
+    }
+
     return (
         <div className="project-card animate-slide-up" style={style}>
             <div className="project-card-header">
@@ -95,7 +105,7 @@ export default function ProjectCard({ project, onOpen, onDelete, style }: Projec
                                 <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
                                     <path d="M1 3C1 1.89543 1.89543 1 3 1H9C10.1046 1 11 1.89543 11 3V7C11 8.10457 10.1046 9 9 9H5L2.5 11V9H3C1.89543 9 1 8.10457 1 7V3Z" stroke="currentColor" strokeWidth="1.2" />
                                 </svg>
-                                <span className="truncate">{chat.title}</span>
+                                <span className="truncate">{getChatPreviewTitle(chat)}</span>
                             </div>
                         ))}
                     </div>
