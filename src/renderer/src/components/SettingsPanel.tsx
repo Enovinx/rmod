@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { Settings, ModelPreset } from '../types'
 import { THEME_OPTIONS } from '../theme'
+import ActionDialog from './ActionDialog'
 import './SettingsPanel.css'
 
 interface SettingsPanelProps {
@@ -14,6 +15,7 @@ export default function SettingsPanel({ settings, onChange, onClose }: SettingsP
     const [newPresetName, setNewPresetName] = useState('')
     const [newPresetModel, setNewPresetModel] = useState('')
     const [showAddPreset, setShowAddPreset] = useState(false)
+    const [showWipeConfirm, setShowWipeConfirm] = useState(false)
 
     const handleApiKeyChange = (key: string) => {
         onChange({ openRouterKey: key })
@@ -222,17 +224,24 @@ export default function SettingsPanel({ settings, onChange, onClose }: SettingsP
                         </p>
                         <button
                             className="btn btn-danger btn-sm"
-                            onClick={() => {
-                                if (confirm('Are you sure you want to wipe all data and reset RMod? This cannot be undone.')) {
-                                    window.api.app.wipeData()
-                                }
-                            }}
+                            onClick={() => setShowWipeConfirm(true)}
                         >
                             Wipe RMod Data
                         </button>
                     </section>
                 </div>
             </div>
+
+            {showWipeConfirm && (
+                <ActionDialog
+                    title="Wipe all RMod data?"
+                    message="This will permanently remove all projects, chats, and settings. This action cannot be undone."
+                    confirmLabel="Wipe Data"
+                    danger
+                    onCancel={() => setShowWipeConfirm(false)}
+                    onConfirm={() => window.api.app.wipeData()}
+                />
+            )}
         </div>
     )
 }
