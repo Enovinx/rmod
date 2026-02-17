@@ -98,8 +98,49 @@
     color: var(--accent-primary);
 }
 
+.message-text table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: var(--spacing-sm) 0;
+    font-size: 13px;
+}
+
+.message-text th,
+.message-text td {
+    border: 1px solid var(--border-default);
+    padding: var(--spacing-xs) var(--spacing-sm);
+    text-align: left;
+    vertical-align: top;
+}
+
+.message-text th {
+    background: var(--bg-secondary);
+    font-weight: 600;
+}
+
+.message-text tr:nth-child(even) td {
+    background: color-mix(in srgb, var(--bg-secondary) 65%, transparent);
+}
+
+.message-text table code {
+    white-space: nowrap;
+}
+
 .user-message .message-text li::marker {
     color: white;
+}
+
+.user-message .message-text th,
+.user-message .message-text td {
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+.user-message .message-text th {
+    background: rgba(255, 255, 255, 0.18);
+}
+
+.user-message .message-text tr:nth-child(even) td {
+    background: rgba(255, 255, 255, 0.1);
 }
 
 .inline-code {

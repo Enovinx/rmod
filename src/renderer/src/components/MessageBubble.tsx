@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import rehypeHighlight from 'rehype-highlight'
 import 'highlight.js/styles/github-dark.css'
@@ -8,6 +8,64 @@ import './MessageBubble.css'
 interface MessageBubbleProps {
     message: Message
     showAvatar?: boolean
+}
+
+const TABLE_ROW_REGEX = /^\s*\|.*\|\s*$/
+const TABLE_DIVIDER_REGEX = /^\s*\|?(?:\s*:?-{3,}:?\s*\|)+\s*:?-{3,}:?\s*\|?\s*$/
+
+function splitTableCells(row: string): string[] {
+    return row
+        .trim()
+        .replace(/^\|/, '')
+        .replace(/\|$/, '')
+        .split('|')
+        .map(cell => cell.trim())
+}
+
+function formatMarkdownTables(content: string): string {
+    const lines = content.split('\n')
+    const normalized: string[] = []
+    let index = 0
+    let isInCodeFence = false
+
+    while (index < lines.length) {
+        const line = lines[index]
+
+        if (line.trim().startsWith('```')) {
+            isInCodeFence = !isInCodeFence
+            normalized.push(line)
+            index += 1
+            continue
+        }
+
+        if (!isInCodeFence && index + 1 < lines.length && TABLE_ROW_REGEX.test(line) && TABLE_DIVIDER_REGEX.test(lines[index + 1])) {
+            const headers = splitTableCells(line)
+            const columnCount = headers.length
+            const rows: string[][] = []
+            index += 2
+
+            while (index < lines.length && TABLE_ROW_REGEX.test(lines[index])) {
+                const row = splitTableCells(lines[index]).slice(0, columnCount)
+                while (row.length < columnCount) {
+                    row.push('')
+                }
+                rows.push(row)
+                index += 1
+            }
+
+            normalized.push(`| ${headers.join(' | ')} |`)
+            normalized.push(`| ${headers.map(() => '---').join(' | ')} |`)
+            rows.forEach(row => {
+                normalized.push(`| ${row.join(' | ')} |`)
+            })
+            continue
+        }
+
+        normalized.push(line)
+        index += 1
+    }
+
+    return normalized.join('\n')
 }
 
 export default function MessageBubble({ message, showAvatar = true }: MessageBubbleProps) {
@@ -22,6 +80,8 @@ export default function MessageBubble({ message, showAvatar = true }: MessageBub
     const hasToolResults = Boolean(message.toolResults && message.toolResults.length > 0)
     const composedThinking = message.reasoning?.trim() || ''
     const hasThinking = Boolean(composedThinking)
+    const formattedContent = useMemo(() => formatMarkdownTables(message.content || ''), [message.content])
+    const formattedThinking = useMemo(() => formatMarkdownTables(composedThinking), [composedThinking])
 
     useEffect(() => {
         if (hasThinking) {
@@ -58,7 +118,7 @@ export default function MessageBubble({ message, showAvatar = true }: MessageBub
                         <ReactMarkdown
                             rehypePlugins={[rehypeHighlight]}
                             components={{
-                                code({ node, inline, className, children, ...props }: any) {
+                                code({ inline, className, children, ...props }: any) {
                                     const match = /language-(\w+)/.exec(className || '')
                                     return !inline && match ? (
                                         <code className={className} {...props}>
@@ -72,7 +132,7 @@ export default function MessageBubble({ message, showAvatar = true }: MessageBub
                                 }
                             }}
                         >
-                            {message.content}
+                            {formattedContent}
                         </ReactMarkdown>
                     </div>
                 )}
@@ -129,7 +189,7 @@ export default function MessageBubble({ message, showAvatar = true }: MessageBub
                     <div className="thinking-panel">
                         <div className="thinking-header">Thinking</div>
                         <div className="thinking-content">
-                            <ReactMarkdown>{composedThinking}</ReactMarkdown>
+                            <ReactMarkdown>{formattedThinking}</ReactMarkdown>
                         </div>
                     </div>
                 )}
