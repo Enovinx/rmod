@@ -61,7 +61,17 @@ interface Settings {
     openRouterKey: string
     activeModelPreset: string
     modelPresets: ModelPreset[]
-    theme: 'dark' | 'light'
+    theme:
+        | 'graphite'
+        | 'midnight'
+        | 'nord'
+        | 'sunset'
+        | 'forest'
+        | 'ocean'
+        | 'rose'
+        | 'amber'
+        | 'violet'
+        | 'terminal'
     hasCompletedSetup: boolean
 }
 
@@ -109,7 +119,7 @@ export function registerIpcHandlers(): void {
                         maxTokens: 4096
                     }
                 ],
-                theme: 'dark',
+                theme: 'graphite',
                 hasCompletedSetup: false
             }
         }

@@ -4,6 +4,7 @@ import Home from './pages/Home'
 import ProjectWorkspace from './pages/ProjectWorkspace'
 import Setup from './pages/Setup'
 import type { Settings } from './types'
+import { applyTheme } from './theme'
 
 export default function App() {
     const [settings, setSettings] = useState<Settings | null>(null)
@@ -16,6 +17,14 @@ export default function App() {
     const loadSettings = async () => {
         try {
             const s = await window.api.settings.get()
+            const normalizedTheme = applyTheme(s.theme)
+
+            if (normalizedTheme !== s.theme) {
+                const migrated = await window.api.settings.set({ theme: normalizedTheme })
+                setSettings(migrated)
+                return
+            }
+
             setSettings(s)
         } catch (error) {
             console.error('Failed to load settings:', error)
