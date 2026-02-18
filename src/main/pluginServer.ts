@@ -13,8 +13,9 @@ export function setMainWindow(window: BrowserWindow) {
 
 interface PluginCommand {
     id: number
-    action: 'create' | 'update' | 'delete'
+    action: 'create' | 'update' | 'delete' | 'move'
     target: string
+    destination?: string
     className?: string
     source?: string
 }
@@ -29,6 +30,38 @@ interface ProjectServer {
 }
 
 const servers = new Map<string, ProjectServer>()
+
+function normalizePath(p: string): string {
+    return p.replace(/\\/g, '/').replace(/^\/+/, '').replace(/\/+/g, '/')
+}
+
+// Studio sends paths rooted at DataModel (e.g. StarterPlayer/StarterPlayerScripts/Foo).
+// Mirror storage keeps top-level service folders (e.g. StarterPlayerScripts/Foo).
+function studioPathToLocal(path: string): string {
+    const normalized = normalizePath(path)
+    if (normalized.startsWith('StarterPlayer/StarterPlayerScripts/')) {
+        return normalized.replace('StarterPlayer/StarterPlayerScripts/', 'StarterPlayerScripts/')
+    }
+    if (normalized === 'StarterPlayer/StarterPlayerScripts') return 'StarterPlayerScripts'
+    if (normalized.startsWith('StarterPlayer/StarterCharacterScripts/')) {
+        return normalized.replace('StarterPlayer/StarterCharacterScripts/', 'StarterCharacterScripts/')
+    }
+    if (normalized === 'StarterPlayer/StarterCharacterScripts') return 'StarterCharacterScripts'
+    return normalized
+}
+
+function localPathToStudio(path: string): string {
+    const normalized = normalizePath(path)
+    if (normalized.startsWith('StarterPlayerScripts/')) {
+        return normalized.replace('StarterPlayerScripts/', 'StarterPlayer/StarterPlayerScripts/')
+    }
+    if (normalized === 'StarterPlayerScripts') return 'StarterPlayer/StarterPlayerScripts'
+    if (normalized.startsWith('StarterCharacterScripts/')) {
+        return normalized.replace('StarterCharacterScripts/', 'StarterPlayer/StarterCharacterScripts/')
+    }
+    if (normalized === 'StarterCharacterScripts') return 'StarterPlayer/StarterCharacterScripts'
+    return normalized
+}
 
 /**
  * Start a plugin Express server for a project on the given port.
@@ -104,13 +137,15 @@ export function startPluginServer(projectId: string, port: number, storagePath?:
                 if (body && Array.isArray(body.files)) {
                     for (const file of body.files) {
                         if (file.path && typeof file.content === 'string') {
-                            await saveFileToStorage(projectServer.storagePath, file.path, file.content)
-                            projectServer.filePaths.add(file.path)
+                            const localPath = studioPathToLocal(file.path)
+                            await saveFileToStorage(projectServer.storagePath, localPath, file.content)
+                            projectServer.filePaths.add(localPath)
                         }
                     }
                 } else if (body && body.path && typeof body.content === 'string') {
-                    await saveFileToStorage(projectServer.storagePath, body.path, body.content)
-                    projectServer.filePaths.add(body.path)
+                    const localPath = studioPathToLocal(body.path)
+                    await saveFileToStorage(projectServer.storagePath, localPath, body.content)
+                    projectServer.filePaths.add(localPath)
                 }
 
                 res.sendStatus(200)
@@ -144,12 +179,34 @@ export function startPluginServer(projectId: string, port: number, storagePath?:
                 // Actually, clearing might lose un-synced work if Studio just connected.
                 // Let's just overwrite for now.
 
-                if (body && Array.isArray(body.files)) {
-                    for (const file of body.files) {
-                        if (file.path && typeof file.content === 'string') {
-                            await saveFileToStorage(projectServer.storagePath, file.path, file.content)
-                            projectServer.filePaths.add(file.path)
+                const snapshotFiles = Array.isArray(body?.scripts)
+                    ? body.scripts
+                    : Array.isArray(body?.files)
+                        ? body.files
+                        : []
+
+                if (snapshotFiles.length > 0) {
+                    const nextSnapshotPaths = new Set<string>()
+
+                    for (const file of snapshotFiles) {
+                        const source = typeof file.source === 'string' ? file.source : file.content
+                        if (file.path && typeof source === 'string') {
+                            const localPath = studioPathToLocal(file.path)
+                            await saveFileToStorage(projectServer.storagePath, localPath, source)
+                            projectServer.filePaths.add(localPath)
+                            nextSnapshotPaths.add(localPath)
                         }
+                    }
+
+                    const stalePaths = [...projectServer.filePaths].filter((p) => !nextSnapshotPaths.has(p))
+                    for (const stalePath of stalePaths) {
+                        const fullPath = join(projectServer.storagePath, stalePath)
+                        try {
+                            await unlink(fullPath)
+                        } catch {
+                            // ignore missing files
+                        }
+                        projectServer.filePaths.delete(stalePath)
                     }
                 }
                 res.sendStatus(200)
@@ -292,28 +349,29 @@ export async function pluginWriteFile(projectId: string, target: string, content
     if (!projectServer) throw new Error('Plugin server not running for this project')
 
     // Write to disk first
+    const localTarget = normalizePath(target)
     if (projectServer.storagePath) {
-        await saveFileToStorage(projectServer.storagePath, target, content)
+        await saveFileToStorage(projectServer.storagePath, localTarget, content)
     }
 
-    const known = projectServer.filePaths.has(target)
+    const known = projectServer.filePaths.has(localTarget)
     const action = known ? 'update' : 'create'
 
     // Determine className from file extension if not provided
     if (!className && action === 'create') {
-        className = inferClassName(target)
+        className = inferClassName(localTarget)
     }
 
     const cmd: PluginCommand = {
         id: projectServer.nextCommandId++,
         action,
-        target,
+        target: localPathToStudio(localTarget),
         source: content,
         ...(className && action === 'create' ? { className } : {})
     }
 
     projectServer.commands.push(cmd)
-    projectServer.filePaths.add(target)
+    projectServer.filePaths.add(localTarget)
 }
 
 /**
@@ -322,17 +380,18 @@ export async function pluginWriteFile(projectId: string, target: string, content
 export async function pluginDeleteFile(projectId: string, target: string): Promise<void> {
     const projectServer = servers.get(projectId)
     if (!projectServer) throw new Error('Plugin server not running for this project')
+    const localTarget = normalizePath(target)
 
     const cmd: PluginCommand = {
         id: projectServer.nextCommandId++,
         action: 'delete',
-        target
+        target: localPathToStudio(localTarget)
     }
 
     projectServer.commands.push(cmd)
 
     if (projectServer.storagePath) {
-        const fullPath = join(projectServer.storagePath, target)
+        const fullPath = join(projectServer.storagePath, localTarget)
         // If ipc.ts already deleted it, unlink might fail. catch error.
         try {
             await unlink(fullPath)
@@ -340,7 +399,7 @@ export async function pluginDeleteFile(projectId: string, target: string): Promi
     }
 
     if (projectServer.filePaths) {
-        projectServer.filePaths.delete(target)
+        projectServer.filePaths.delete(localTarget)
     }
 }
 
