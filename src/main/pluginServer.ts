@@ -73,6 +73,13 @@ function localPathToStudio(path: string): string {
     return normalized
 }
 
+
+
+// Backward-compat helper: older sync paths may still call this during hot-reload.
+// ID reconciliation is now create-only and handled by ensureRmodIdScript/payloadContainsRmodId.
+function validateSyncProjectId(): { ok: true } {
+    return { ok: true }
+}
 function payloadContainsRmodId(files: Array<{ path?: string }>): boolean {
     return files.some((file) => !!file.path && studioPathToLocal(file.path) === RMOD_ID_SCRIPT_PATH)
 }
