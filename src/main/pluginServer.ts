@@ -73,80 +73,36 @@ function localPathToStudio(path: string): string {
     return normalized
 }
 
-function extractProjectIdFromScript(content: string): string | null {
-    const returnMatch = content.match(/return\s+["']([^"']+)["']/)
-    if (returnMatch?.[1]) return returnMatch[1]
-
-    const constMatch = content.match(/RMOD_PROJECT_ID\s*=\s*["']([^"']+)["']/)
-    if (constMatch?.[1]) return constMatch[1]
-
-    return null
+function payloadContainsRmodId(files: Array<{ path?: string }>): boolean {
+    return files.some((file) => !!file.path && studioPathToLocal(file.path) === RMOD_ID_SCRIPT_PATH)
 }
 
-
-
-async function ensureRmodIdScript(projectId: string, projectServer: ProjectServer): Promise<void> {
+async function ensureRmodIdScript(projectId: string, projectServer: ProjectServer, enqueueCommand = true): Promise<void> {
     if (!projectServer.storagePath) return
 
     const scriptContent = getRmodIdScriptContent(projectId)
     const fullPath = join(projectServer.storagePath, RMOD_ID_SCRIPT_PATH)
-    const alreadyKnown = projectServer.filePaths.has(RMOD_ID_SCRIPT_PATH)
+    const existsOnDisk = existsSync(fullPath)
 
-    if (!existsSync(fullPath)) {
+    if (!existsOnDisk) {
         await saveFileToStorage(projectServer.storagePath, RMOD_ID_SCRIPT_PATH, scriptContent)
         projectServer.filePaths.add(RMOD_ID_SCRIPT_PATH)
-    }
 
-    const cmd: PluginCommand = {
-        id: projectServer.nextCommandId++,
-        action: alreadyKnown ? 'update' : 'create',
-        target: localPathToStudio(RMOD_ID_SCRIPT_PATH),
-        source: scriptContent,
-        ...(alreadyKnown ? {} : { className: 'ModuleScript' })
-    }
+        if (!enqueueCommand) return
 
-    projectServer.commands.push(cmd)
-}
-
-function validateSyncProjectId(
-    projectId: string,
-    files: Array<{ path?: string; content?: string; source?: string }>,
-    options?: { requireIdScript?: boolean }
-): { ok: true } | { ok: false; error: string } {
-    const idFile = files.find((file) => {
-        if (!file.path) return false
-        return studioPathToLocal(file.path) === RMOD_ID_SCRIPT_PATH
-    })
-
-    if (!idFile) {
-        if (options?.requireIdScript) {
-            return {
-                ok: false,
-                error: 'RMod ID script not found in sync payload. Please ensure Studio applies pending RMod commands and re-sync.'
-            }
+        const cmd: PluginCommand = {
+            id: projectServer.nextCommandId++,
+            action: 'create',
+            target: localPathToStudio(RMOD_ID_SCRIPT_PATH),
+            className: 'ModuleScript',
+            source: scriptContent
         }
 
-        return { ok: true }
+        projectServer.commands.push(cmd)
+        return
     }
 
-    const source = typeof idFile.source === 'string' ? idFile.source : idFile.content
-    if (typeof source !== 'string') {
-        return { ok: false, error: 'RMod ID script is missing source content.' }
-    }
-
-    const incomingProjectId = extractProjectIdFromScript(source)
-    if (!incomingProjectId) {
-        return { ok: false, error: 'Failed to read project ID from incoming RMod ID script.' }
-    }
-
-    if (incomingProjectId !== projectId) {
-        return {
-            ok: false,
-            error: `Project ID mismatch. Expected ${projectId}, received ${incomingProjectId}.`
-        }
-    }
-
-    return { ok: true }
+    projectServer.filePaths.add(RMOD_ID_SCRIPT_PATH)
 }
 
 /**
@@ -235,6 +191,10 @@ export function startPluginServer(projectId: string, port: number, storagePath?:
                             projectServer.filePaths.add(localPath)
                         }
                     }
+
+                    if (!payloadContainsRmodId(body.files)) {
+                        await ensureRmodIdScript(projectId, projectServer, true)
+                    }
                 } else if (body && body.path && typeof body.content === 'string') {
                     const idValidation = validateSyncProjectId(projectId, [body])
                     if (!idValidation.ok) {
@@ -245,6 +205,10 @@ export function startPluginServer(projectId: string, port: number, storagePath?:
                     const localPath = studioPathToLocal(body.path)
                     await saveFileToStorage(projectServer.storagePath, localPath, body.content)
                     projectServer.filePaths.add(localPath)
+
+                    if (!payloadContainsRmodId([body])) {
+                        await ensureRmodIdScript(projectId, projectServer, true)
+                    }
                 }
 
                 res.sendStatus(200)
@@ -303,6 +267,13 @@ export function startPluginServer(projectId: string, port: number, storagePath?:
                         }
                     }
 
+                    if (
+                        projectServer.filePaths.has(RMOD_ID_SCRIPT_PATH)
+                        || existsSync(join(projectServer.storagePath, RMOD_ID_SCRIPT_PATH))
+                    ) {
+                        nextSnapshotPaths.add(RMOD_ID_SCRIPT_PATH)
+                    }
+
                     const stalePaths = [...projectServer.filePaths].filter((p) => !nextSnapshotPaths.has(p))
                     for (const stalePath of stalePaths) {
                         const fullPath = join(projectServer.storagePath, stalePath)
@@ -313,6 +284,10 @@ export function startPluginServer(projectId: string, port: number, storagePath?:
                         }
                         projectServer.filePaths.delete(stalePath)
                     }
+                }
+
+                if (!payloadContainsRmodId(snapshotFiles)) {
+                    await ensureRmodIdScript(projectId, projectServer, true)
                 }
                 res.sendStatus(200)
 
