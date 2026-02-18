@@ -196,6 +196,12 @@ export function startPluginServer(projectId: string, port: number, storagePath?:
             try {
                 // Accept both single change and array of files
                 if (body && Array.isArray(body.files)) {
+                    const idValidation = validateSyncProjectId(projectId, body.files)
+                    if (!idValidation.ok) {
+                        res.status(409).send(idValidation.error)
+                        return
+                    }
+
                     for (const file of body.files) {
                         if (file.path && typeof file.content === 'string') {
                             const localPath = studioPathToLocal(file.path)
@@ -208,6 +214,12 @@ export function startPluginServer(projectId: string, port: number, storagePath?:
                         await ensureRmodIdScript(projectId, projectServer, { enqueueCreate: true })
                     }
                 } else if (body && body.path && typeof body.content === 'string') {
+                    const idValidation = validateSyncProjectId(projectId, [body])
+                    if (!idValidation.ok) {
+                        res.status(409).send(idValidation.error)
+                        return
+                    }
+
                     const localPath = studioPathToLocal(body.path)
                     await saveFileToStorage(projectServer.storagePath, localPath, body.content)
                     projectServer.filePaths.add(localPath)
@@ -253,6 +265,12 @@ export function startPluginServer(projectId: string, port: number, storagePath?:
                     : Array.isArray(body?.files)
                         ? body.files
                         : []
+
+                const idValidation = validateSyncProjectId(projectId, snapshotFiles, { requireIdScript: true })
+                if (!idValidation.ok) {
+                    res.status(409).send(idValidation.error)
+                    return
+                }
 
                 if (snapshotFiles.length > 0) {
                     const nextSnapshotPaths = new Set<string>()
