@@ -57,6 +57,8 @@ IMPORTANT When creating files:
 
 IT IS REALLY IMPORTANT YOU FOLLOW THE . STANDARDS OR ELSE THE SCRIPT WONT WORK AS YOU INTEND
 
+Make sure before you write a file you know where you want to put, use filesystem searching commands to know where it is supposed to go.
+
 When you've completed the user's request, provide a summary of what you did.`
 
 const SUPER_AGENT_SYSTEM_PROMPT = `${SYSTEM_PROMPT}
