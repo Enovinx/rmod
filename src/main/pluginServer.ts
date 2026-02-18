@@ -31,7 +31,7 @@ interface ProjectServer {
 
 const servers = new Map<string, ProjectServer>()
 
-export const RMOD_ID_SCRIPT_PATH = 'ServerScriptService/RModId.module.lua'
+export const RMOD_ID_SCRIPT_PATH = 'ServerScriptService/RModId.luau'
 
 export function getRmodIdScriptContent(projectId: string): string {
     return [
