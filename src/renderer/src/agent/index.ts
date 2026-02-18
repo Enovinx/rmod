@@ -44,6 +44,7 @@ When the user asks you to do something:
 Be concise but helpful. When editing code, make sure to preserve existing functionality unless asked to remove it.
 
 For Roblox/Luau code:
+- Use :GetService() to get services, dont use game.ServiceName as this is a bad practice
 - Use proper naming conventions (PascalCase for services, camelCase for variables)
 - Follow Roblox best practices
 - Include type annotations where appropriate
