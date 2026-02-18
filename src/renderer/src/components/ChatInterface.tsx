@@ -106,6 +106,8 @@ export default function ChatInterface({
                 chatId: chat.id,
                 userMessage,
                 projectPath: project.folderPath,
+                projectId: project.id,
+                syncMode: project.syncMode || 'filesystem',
                 settings,
                 superAgentMode,
                 onStatusUpdate: setCurrentAction,

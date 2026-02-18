@@ -171,7 +171,6 @@ export default function SettingsPanel({ settings, onChange, onClose }: SettingsP
                                 </div>
                             )}
                         </div>
-                        <p className="form-hint">Pick from 10 unique themes to customize your workspace.</p>
                     </section>
 
                     {/* Model Presets */}
@@ -207,6 +206,7 @@ export default function SettingsPanel({ settings, onChange, onClose }: SettingsP
                                         <option key={m.id} value={m.id}>{m.name}</option>
                                     ))}
                                 </datalist>
+                               
                                 <div className="add-preset-actions">
                                     <button className="btn btn-sm" onClick={() => setShowAddPreset(false)}>
                                         Cancel
@@ -221,7 +221,7 @@ export default function SettingsPanel({ settings, onChange, onClose }: SettingsP
                                 </div>
                             </div>
                         )}
-
+                       
                         <div className="presets-list">
                             {settings.modelPresets.map(preset => (
                                 <div
@@ -250,6 +250,7 @@ export default function SettingsPanel({ settings, onChange, onClose }: SettingsP
                                     )}
                                 </div>
                             ))}
+                            <p className="form-hint">Be aware that some model providers will collect your data for training. Look at the model on openrouter for more information, so you can decide which are suitable for your project.</p>
                         </div>
                     </section>
 
@@ -258,7 +259,8 @@ export default function SettingsPanel({ settings, onChange, onClose }: SettingsP
                         <h3>About</h3>
                         <p className="text-secondary text-sm">
                             RMod v1.0.0<br />
-                            AI-powered coding assistant for Roblox development
+                            Unofficial AI-powered coding assistant for Roblox development.
+                            Created by @Enovinx.
                         </p>
                     </section>
 

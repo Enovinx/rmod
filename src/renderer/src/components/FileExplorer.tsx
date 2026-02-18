@@ -4,10 +4,12 @@ import './FileExplorer.css'
 
 interface FileExplorerProps {
     projectPath: string
+    projectId: string
+    syncMode: 'filesystem' | 'plugin'
     onClose: () => void
 }
 
-export default function FileExplorer({ projectPath, onClose }: FileExplorerProps) {
+export default function FileExplorer({ projectPath, projectId, syncMode, onClose }: FileExplorerProps) {
     const [files, setFiles] = useState<FileEntry[]>([])
     const [loading, setLoading] = useState(true)
     const [selectedFile, setSelectedFile] = useState<string | null>(null)
@@ -16,16 +18,36 @@ export default function FileExplorer({ projectPath, onClose }: FileExplorerProps
 
     useEffect(() => {
         loadFiles()
-    }, [projectPath])
+    }, [projectPath, projectId, syncMode])
+
+    // Listen for plugin file updates
+    useEffect(() => {
+        if (syncMode === 'plugin') {
+            const removeListener = window.api.plugin.onFilesUpdated((pid) => {
+                if (pid === projectId) {
+                    loadFiles()
+                }
+            })
+            return removeListener
+        }
+    }, [syncMode, projectId])
 
     const loadFiles = async () => {
         try {
-            const result = await window.api.files.list(projectPath, true)
-            if (result.success && result.files) {
-                // Build tree structure
-                const tree = buildTree(result.files)
-                setFiles(tree)
+            let filesList: any[] = []
+
+            if (syncMode === 'plugin') {
+                filesList = await window.api.plugin.getFiles(projectId)
+            } else {
+                const result = await window.api.files.list(projectPath, true)
+                if (result.success && result.files) {
+                    filesList = result.files
+                }
             }
+
+            // Build tree structure
+            const tree = buildTree(filesList)
+            setFiles(tree)
         } catch (error) {
             console.error('Failed to load files:', error)
         } finally {
@@ -79,14 +101,37 @@ export default function FileExplorer({ projectPath, onClose }: FileExplorerProps
     }
 
     const handleFileClick = async (file: FileEntry) => {
+        // Toggle folder
         if (file.isDirectory) {
-            toggleFolder(file.path)
-        } else {
-            setSelectedFile(file.path)
-            const result = await window.api.files.read(`${projectPath}/${file.path}`)
-            if (result.success) {
-                setFileContent(result.content || '')
+            const newExpanded = new Set(expandedFolders)
+            if (newExpanded.has(file.path)) {
+                newExpanded.delete(file.path)
+            } else {
+                newExpanded.add(file.path)
             }
+            setExpandedFolders(newExpanded)
+            return
+        }
+
+        // Select file
+        setSelectedFile(file.path)
+
+        // Read file content
+        try {
+            let content = ''
+
+            if (syncMode === 'plugin') {
+                const result = await window.api.plugin.readFile(projectId, file.path)
+                if (result.success) content = result.content || ''
+            } else {
+                const result = await window.api.files.read(`${projectPath}/${file.path}`)
+                if (result.success) content = result.content || ''
+            }
+
+            setFileContent(content)
+        } catch (error) {
+            console.error('Failed to read file:', error)
+            setFileContent('Error reading file')
         }
     }
 
