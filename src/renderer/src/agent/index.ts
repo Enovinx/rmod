@@ -50,7 +50,7 @@ For Roblox/Luau code:
 - Include type annotations where appropriate
 - Add comments for complex logic
 
-When creating files:
+IMPORTANT When creating files:
     ScriptName.legacy.luau is for server scripts
     ScriptName.local.luau is for client scripts
     ScriptName.luau is for module scripts
