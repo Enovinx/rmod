@@ -1,7 +1,7 @@
 import express from 'express'
 import type { Server } from 'http'
 import { BrowserWindow } from 'electron'
-import { mkdir, writeFile, readFile, unlink, readdir, stat, rm } from 'fs/promises'
+import { mkdir, writeFile, readFile, unlink, readdir, stat } from 'fs/promises'
 import { join, dirname, relative, sep } from 'path'
 import { existsSync } from 'fs'
 
@@ -83,9 +83,35 @@ function extractProjectIdFromScript(content: string): string | null {
     return null
 }
 
+
+
+async function ensureRmodIdScript(projectId: string, projectServer: ProjectServer): Promise<void> {
+    if (!projectServer.storagePath) return
+
+    const scriptContent = getRmodIdScriptContent(projectId)
+    const fullPath = join(projectServer.storagePath, RMOD_ID_SCRIPT_PATH)
+    const alreadyKnown = projectServer.filePaths.has(RMOD_ID_SCRIPT_PATH)
+
+    if (!existsSync(fullPath)) {
+        await saveFileToStorage(projectServer.storagePath, RMOD_ID_SCRIPT_PATH, scriptContent)
+        projectServer.filePaths.add(RMOD_ID_SCRIPT_PATH)
+    }
+
+    const cmd: PluginCommand = {
+        id: projectServer.nextCommandId++,
+        action: alreadyKnown ? 'update' : 'create',
+        target: localPathToStudio(RMOD_ID_SCRIPT_PATH),
+        source: scriptContent,
+        ...(alreadyKnown ? {} : { className: 'ModuleScript' })
+    }
+
+    projectServer.commands.push(cmd)
+}
+
 function validateSyncProjectId(
     projectId: string,
-    files: Array<{ path?: string; content?: string; source?: string }>
+    files: Array<{ path?: string; content?: string; source?: string }>,
+    options?: { requireIdScript?: boolean }
 ): { ok: true } | { ok: false; error: string } {
     const idFile = files.find((file) => {
         if (!file.path) return false
@@ -93,6 +119,13 @@ function validateSyncProjectId(
     })
 
     if (!idFile) {
+        if (options?.requireIdScript) {
+            return {
+                ok: false,
+                error: 'RMod ID script not found in sync payload. Please ensure Studio applies pending RMod commands and re-sync.'
+            }
+        }
+
         return { ok: true }
     }
 
@@ -170,6 +203,7 @@ export function startPluginServer(projectId: string, port: number, storagePath?:
                     }
                 }
                 await scan(projectServer.storagePath)
+                await ensureRmodIdScript(projectId, projectServer)
             } catch (err) {
                 console.error(`[plugin:${projectId}] Failed to scan initial files:`, err)
             }
@@ -250,7 +284,7 @@ export function startPluginServer(projectId: string, port: number, storagePath?:
                         ? body.files
                         : []
 
-                const idValidation = validateSyncProjectId(projectId, snapshotFiles)
+                const idValidation = validateSyncProjectId(projectId, snapshotFiles, { requireIdScript: true })
                 if (!idValidation.ok) {
                     res.status(409).send(idValidation.error)
                     return
