@@ -88,18 +88,36 @@ function hasPendingRmodIdCreate(projectServer: ProjectServer): boolean {
     return projectServer.commands.some((cmd) => cmd.action === 'create' && cmd.target === localPathToStudio(RMOD_ID_SCRIPT_PATH))
 }
 
-function enqueueRmodIdCreate(projectId: string, projectServer: ProjectServer): void {
-    if (hasPendingRmodIdCreate(projectServer)) return
+function enqueueWriteCommand(
+    projectServer: ProjectServer,
+    target: string,
+    source: string,
+    options?: { className?: string; forceCreate?: boolean }
+): void {
+    const localTarget = normalizePath(target)
+    const existsInMirror = projectServer.filePaths.has(localTarget)
+    const action: PluginCommand['action'] = options?.forceCreate || !existsInMirror ? 'create' : 'update'
 
     const cmd: PluginCommand = {
         id: projectServer.nextCommandId++,
-        action: 'create',
-        target: localPathToStudio(RMOD_ID_SCRIPT_PATH),
-        className: 'ModuleScript',
-        source: getRmodIdScriptContent(projectId)
+        action,
+        target: localPathToStudio(localTarget),
+        source,
+        ...(action === 'create'
+            ? { className: options?.className || inferClassName(localTarget) }
+            : {})
     }
 
     projectServer.commands.push(cmd)
+}
+
+function enqueueRmodIdCreate(projectId: string, projectServer: ProjectServer): void {
+    if (hasPendingRmodIdCreate(projectServer)) return
+
+    enqueueWriteCommand(projectServer, RMOD_ID_SCRIPT_PATH, getRmodIdScriptContent(projectId), {
+        className: 'ModuleScript',
+        forceCreate: true
+    })
 }
 
 async function ensureRmodIdScript(
@@ -456,23 +474,7 @@ export async function pluginWriteFile(projectId: string, target: string, content
         await saveFileToStorage(projectServer.storagePath, localTarget, content)
     }
 
-    const known = projectServer.filePaths.has(localTarget)
-    const action = known ? 'update' : 'create'
-
-    // Determine className from file extension if not provided
-    if (!className && action === 'create') {
-        className = inferClassName(localTarget)
-    }
-
-    const cmd: PluginCommand = {
-        id: projectServer.nextCommandId++,
-        action,
-        target: localPathToStudio(localTarget),
-        source: content,
-        ...(className && action === 'create' ? { className } : {})
-    }
-
-    projectServer.commands.push(cmd)
+    enqueueWriteCommand(projectServer, localTarget, content, { className })
     projectServer.filePaths.add(localTarget)
 }
 
