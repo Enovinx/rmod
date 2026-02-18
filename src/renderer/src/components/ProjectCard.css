@@ -16,14 +16,11 @@
     image-rendering: pixelated;
     filter: blur(2px);
     /* Reduced blur for visibility */
-    opacity: 0.6;
-    /* Increased opacity */
-    pointer-events: none;
-    transition: transform 0.1s ease-out;
-}
-
-.project-card:hover .project-card-bg {
     opacity: 0.25;
+    /* Low opacity by default for readability */
+    pointer-events: none;
+    transition: transform 0.1s ease-out, opacity 0.2s ease;
+    z-index: 0;
 }
 
 .project-card-content {
