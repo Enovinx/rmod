@@ -3,7 +3,16 @@ import { readFile, writeFile, unlink, readdir, stat, mkdir } from 'fs/promises'
 import { join, relative, basename } from 'path'
 import { existsSync } from 'fs'
 import Store from 'electron-store'
-import { startPluginServer, stopPluginServer, getPluginFiles, getPluginFileContent, pluginWriteFile, pluginDeleteFile } from './pluginServer'
+import {
+    startPluginServer,
+    stopPluginServer,
+    getPluginFiles,
+    getPluginFileContent,
+    pluginWriteFile,
+    pluginDeleteFile,
+    RMOD_ID_SCRIPT_PATH,
+    getRmodIdScriptContent
+} from './pluginServer'
 
 interface Project {
     id: string
@@ -332,6 +341,9 @@ export function registerIpcHandlers(): void {
                     await mkdir(subDir, { recursive: true })
                 }
             }
+
+            const rmodIdScript = join(folderPath, RMOD_ID_SCRIPT_PATH)
+            await writeFile(rmodIdScript, getRmodIdScriptContent(id), 'utf-8')
         }
 
         const newProject: Project = {
