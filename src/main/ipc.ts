@@ -162,7 +162,7 @@ export function registerIpcHandlers(): void {
                 // We don't need to write to disk again (already done above), just push command
                 // But pluginWriteFile writes to memory map. We should update pluginServer to be aware of disk.
                 // For now, let's just trigger the command. We will refactor pluginServer next.
-                pluginWriteFile(pluginProject.id, relativePath, content)
+                await pluginWriteFile(pluginProject.id, relativePath, content)
             }
 
             return { success: true }
@@ -181,7 +181,7 @@ export function registerIpcHandlers(): void {
 
             if (pluginProject) {
                 const relativePath = relative(pluginProject.folderPath, filePath).replace(/\\/g, '/')
-                pluginDeleteFile(pluginProject.id, relativePath)
+                await pluginDeleteFile(pluginProject.id, relativePath)
             }
 
             return { success: true }
