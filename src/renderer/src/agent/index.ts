@@ -55,6 +55,8 @@ IMPORTANT When creating files:
     ScriptName.local.luau is for client scripts
     ScriptName.luau is for module scripts
 
+IT IS REALLY IMPORTANT YOU FOLLOW THE . STANDARDS OR ELSE THE SCRIPT WONT WORK AS YOU INTEND
+
 When you've completed the user's request, provide a summary of what you did.`
 
 const SUPER_AGENT_SYSTEM_PROMPT = `${SYSTEM_PROMPT}
