@@ -59,10 +59,14 @@ export default function FileExplorer({ projectPath, projectId, syncMode, onClose
         const root: FileEntry[] = []
         const pathMap = new Map<string, FileEntry>()
 
-        // Sort so directories come first, then by name
+        // Sort so parents are always processed before children.
+        // Global name sorting can place a child before its parent,
+        // which causes nested files to never attach into the tree.
         const sorted = [...flatFiles].sort((a, b) => {
+            const depthDiff = a.path.split('/').length - b.path.split('/').length
+            if (depthDiff !== 0) return depthDiff
             if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1
-            return a.name.localeCompare(b.name)
+            return a.path.localeCompare(b.path)
         })
 
         for (const file of sorted) {
