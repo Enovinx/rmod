@@ -11,6 +11,8 @@ interface AgentOptions {
     chatId: string
     userMessage: string
     projectPath: string
+    projectId: string
+    syncMode: 'filesystem' | 'plugin'
     settings: Settings
     superAgentMode: boolean
     onStatusUpdate: (status: string) => void
@@ -217,6 +219,8 @@ export async function runAgent(options: AgentOptions): Promise<void> {
         chatId,
         userMessage,
         projectPath,
+        projectId,
+        syncMode,
         settings,
         superAgentMode,
         onStatusUpdate,
@@ -343,7 +347,10 @@ export async function runAgent(options: AgentOptions): Promise<void> {
                 for (const toolCall of toolCalls) {
                     onStatusUpdate(`Executing: ${toolCall.name}`)
 
-                    const result = await executeToolCall(toolCall.name, toolCall.arguments, projectPath)
+                    const result = await executeToolCall(toolCall.name, toolCall.arguments, projectPath, {
+                        syncMode,
+                        projectId
+                    })
                     toolResults.push({
                         toolCallId: toolCall.id,
                         result: result.success ? result.data : result.error,

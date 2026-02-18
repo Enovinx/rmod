@@ -59,9 +59,9 @@ export default function Home() {
         }
     }
 
-    const handleCreateProject = async (name: string, folderPath: string) => {
+    const handleCreateProject = async (name: string, folderPath: string, syncMode: 'filesystem' | 'plugin', pluginPort?: number) => {
         try {
-            const project = await window.api.projects.create({ name, folderPath })
+            const project = await window.api.projects.create({ name, folderPath, syncMode, pluginPort })
             setProjects(prev => [project, ...prev])
             setShowCreateModal(false)
             navigate(`/project/${project.id}`)

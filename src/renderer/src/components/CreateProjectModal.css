@@ -34,6 +34,65 @@
     cursor: pointer;
 }
 
+/* Sync Mode Toggle */
+.sync-mode-toggle {
+    display: flex;
+    gap: var(--spacing-xs);
+    background: var(--bg-tertiary, rgba(255, 255, 255, 0.04));
+    border-radius: var(--radius-md);
+    padding: 3px;
+    border: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
+}
+
+.sync-mode-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-xs);
+    padding: 8px 12px;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-secondary, #999);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.sync-mode-btn:hover {
+    color: var(--text-primary, #fff);
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.sync-mode-btn.active {
+    background: var(--accent-color, #8b5cf6);
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(139, 92, 246, 0.3);
+}
+
+.sync-mode-btn svg {
+    flex-shrink: 0;
+}
+
+.sync-mode-hint {
+    margin-top: var(--spacing-xs);
+    font-size: 12px;
+    color: var(--text-tertiary, #666);
+}
+
+.port-input {
+    max-width: 140px;
+}
+
+.plugin-services-hint {
+    margin-top: var(--spacing-xs);
+    font-size: 11px;
+    color: var(--text-tertiary, #666);
+    opacity: 0.7;
+}
+
 .error-message {
     background: rgba(239, 68, 68, 0.1);
     border: 1px solid rgba(239, 68, 68, 0.3);
