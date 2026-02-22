@@ -4,12 +4,10 @@ import './FileExplorer.css'
 
 interface FileExplorerProps {
     projectPath: string
-    projectId: string
-    syncMode: 'filesystem' | 'plugin'
     onClose: () => void
 }
 
-export default function FileExplorer({ projectPath, projectId, syncMode, onClose }: FileExplorerProps) {
+export default function FileExplorer({ projectPath, onClose }: FileExplorerProps) {
     const [files, setFiles] = useState<FileEntry[]>([])
     const [loading, setLoading] = useState(true)
     const [selectedFile, setSelectedFile] = useState<string | null>(null)
@@ -18,31 +16,14 @@ export default function FileExplorer({ projectPath, projectId, syncMode, onClose
 
     useEffect(() => {
         loadFiles()
-    }, [projectPath, projectId, syncMode])
-
-    // Listen for plugin file updates
-    useEffect(() => {
-        if (syncMode === 'plugin') {
-            const removeListener = window.api.plugin.onFilesUpdated((pid) => {
-                if (pid === projectId) {
-                    loadFiles()
-                }
-            })
-            return removeListener
-        }
-    }, [syncMode, projectId])
+    }, [projectPath])
 
     const loadFiles = async () => {
         try {
             let filesList: any[] = []
-
-            if (syncMode === 'plugin') {
-                filesList = await window.api.plugin.getFiles(projectId)
-            } else {
-                const result = await window.api.files.list(projectPath, true)
-                if (result.success && result.files) {
-                    filesList = result.files
-                }
+            const result = await window.api.files.list(projectPath, true)
+            if (result.success && result.files) {
+                filesList = result.files
             }
 
             // Build tree structure
@@ -124,13 +105,8 @@ export default function FileExplorer({ projectPath, projectId, syncMode, onClose
         try {
             let content = ''
 
-            if (syncMode === 'plugin') {
-                const result = await window.api.plugin.readFile(projectId, file.path)
-                if (result.success) content = result.content || ''
-            } else {
-                const result = await window.api.files.read(`${projectPath}/${file.path}`)
-                if (result.success) content = result.content || ''
-            }
+            const result = await window.api.files.read(`${projectPath}/${file.path}`)
+            if (result.success) content = result.content || ''
 
             setFileContent(content)
         } catch (error) {

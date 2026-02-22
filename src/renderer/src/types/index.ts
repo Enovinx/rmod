@@ -3,8 +3,7 @@ export interface Project {
     id: string
     name: string
     folderPath: string
-    syncMode: 'filesystem' | 'plugin'
-    pluginPort?: number
+    syncMode: 'filesystem'
     createdAt: string
     lastOpenedAt: string
 }
