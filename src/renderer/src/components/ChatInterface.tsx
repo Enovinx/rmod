@@ -364,7 +364,7 @@ export default function ChatInterface({
                         <path d="M8 1L15 14H1L8 1Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
                         <path d="M8 6V9M8 11V11.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
                     </svg>
-                    <span>Super Agent Mode - explores project, drafts a plan, then executes checklist tasks.</span>
+                    <span>WARNING THIS FEATURE IS EXPERIMENTAL AND MAY BREAK</span>
                 </div>
             )}
 
