@@ -83,8 +83,20 @@ interface Settings {
     openRouterKey: string
     activeModelPreset: string
     modelPresets: ModelPreset[]
-    theme: 'dark' | 'light'
+    theme:
+    | 'graphite'
+    | 'midnight'
+    | 'nord'
+    | 'sunset'
+    | 'forest'
+    | 'ocean'
+    | 'rose'
+    | 'amber'
+    | 'violet'
+    | 'terminal'
     hasCompletedSetup: boolean
+    hasSeenModelWalkthrough: boolean
+    checkpointRetentionDays: number
 }
 
 // API exposed to renderer

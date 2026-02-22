@@ -52,6 +52,11 @@ export default function SettingsPanel({ settings, onChange, onClose }: SettingsP
         onChange({ activeModelPreset: presetId })
     }
 
+    const handleCheckpointRetentionChange = (days: number) => {
+        if (!Number.isFinite(days)) return
+        onChange({ checkpointRetentionDays: Math.min(365, Math.max(1, Math.floor(days))) })
+    }
+
     const handleAddPreset = () => {
         if (!newPresetName || !newPresetModel) return
 
@@ -252,6 +257,24 @@ export default function SettingsPanel({ settings, onChange, onClose }: SettingsP
                             ))}
                             <p className="form-hint">Be aware that some model providers will collect your data for training. Look at the model on openrouter for more information, so you can decide which are suitable for your project.</p>
                         </div>
+                    </section>
+
+                    <section className="settings-section">
+                        <h3>Auto-Rollback Retention</h3>
+                        <div className="retention-input-row">
+                            <input
+                                type="number"
+                                min={1}
+                                max={365}
+                                className="input retention-input"
+                                value={settings.checkpointRetentionDays}
+                                onChange={e => handleCheckpointRetentionChange(Number(e.target.value))}
+                            />
+                            <span className="text-muted text-sm">days</span>
+                        </div>
+                        <p className="form-hint">
+                            Auto-rollback saves older than this are deleted automatically.
+                        </p>
                     </section>
 
                     {/* About */}
