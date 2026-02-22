@@ -18,6 +18,15 @@ export default function FileExplorer({ projectPath, onClose }: FileExplorerProps
         loadFiles()
     }, [projectPath])
 
+    useEffect(() => {
+        const unsubscribe = window.api.events.onFilesChanged(({ projectPath: changedProjectPath }) => {
+            if (!changedProjectPath.startsWith(projectPath)) return
+            loadFiles()
+        })
+
+        return unsubscribe
+    }, [projectPath])
+
     const loadFiles = async () => {
         try {
             let filesList: any[] = []

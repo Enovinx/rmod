@@ -1,4 +1,4 @@
-import { ipcMain, dialog, app } from 'electron'
+import { ipcMain, dialog, app, BrowserWindow } from 'electron'
 import { readFile, writeFile, unlink, readdir, stat, mkdir } from 'fs/promises'
 import { join, relative, basename, dirname } from 'path'
 import { existsSync } from 'fs'
@@ -152,6 +152,12 @@ function purgeExpiredCheckpoints(retentionDays: number): Checkpoint[] {
 }
 
 export function registerIpcHandlers(): void {
+    const notifyFileTreeChanged = (projectPath: string) => {
+        for (const window of BrowserWindow.getAllWindows()) {
+            window.webContents.send('files:changed', { projectPath })
+        }
+    }
+
     store = new Store<{
         projects: Project[]
         chats: Chat[]
@@ -224,6 +230,7 @@ export function registerIpcHandlers(): void {
                 await mkdir(dir, { recursive: true })
             }
             await writeFile(filePath, content, 'utf-8')
+            notifyFileTreeChanged(dirname(filePath))
 
             return { success: true }
         } catch (error) {
@@ -234,6 +241,7 @@ export function registerIpcHandlers(): void {
     ipcMain.handle('file:mkdir', async (_, dirPath: string) => {
         try {
             await mkdir(dirPath, { recursive: true })
+            notifyFileTreeChanged(dirname(dirPath))
             return { success: true }
         } catch (error) {
             return { success: false, error: String(error) }
@@ -243,6 +251,7 @@ export function registerIpcHandlers(): void {
     ipcMain.handle('file:delete', async (_, filePath: string) => {
         try {
             await unlink(filePath)
+            notifyFileTreeChanged(dirname(filePath))
 
             return { success: true }
         } catch (error) {
@@ -540,6 +549,7 @@ export function registerIpcHandlers(): void {
                     await writeFile(fullPath, file.content, 'utf-8')
                 }
             }
+            notifyFileTreeChanged(projectPath)
             return { success: true }
         } catch (error) {
             return { success: false, error: String(error) }

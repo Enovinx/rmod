@@ -99,6 +99,10 @@ interface Settings {
     checkpointRetentionDays: number
 }
 
+interface FileChangeEvent {
+    projectPath: string
+}
+
 // API exposed to renderer
 const api = {
     // File operations
@@ -118,6 +122,16 @@ const api = {
             query: string,
             options?: { extensions?: string[] }
         ): Promise<SearchResult> => ipcRenderer.invoke('file:search', dirPath, query, options)
+    },
+
+    events: {
+        onFilesChanged: (callback: (event: FileChangeEvent) => void): (() => void) => {
+            const listener = (_: unknown, payload: FileChangeEvent) => callback(payload)
+            ipcRenderer.on('files:changed', listener)
+            return () => {
+                ipcRenderer.removeListener('files:changed', listener)
+            }
+        }
     },
 
     // Dialog operations
