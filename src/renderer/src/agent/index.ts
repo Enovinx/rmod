@@ -50,10 +50,13 @@ For Roblox/Luau code:
 - Include type annotations where appropriate
 - Add comments for complex logic
 
-IMPORTANT When creating files:
-    ScriptName.legacy.luau is for server scripts
-    ScriptName.local.luau is for client scripts
-    ScriptName.luau is for module scripts
+IMPORTANT When creating files with write_file:
+    Use type Folder, ModuleScript, LocalScript, or ServerScript.
+    Provide only the file/folder name in name (no extension needed).
+    If an extension is provided, it will be removed and replaced by the selected type:
+      ServerScript => ScriptName.legacy.luau
+      LocalScript => ScriptName.local.luau
+      ModuleScript => ScriptName.luau
 
 IT IS REALLY IMPORTANT YOU FOLLOW THE . STANDARDS OR ELSE THE SCRIPT WONT WORK AS YOU INTEND
 
