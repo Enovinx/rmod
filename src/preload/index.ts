@@ -120,6 +120,18 @@ const api = {
         ): Promise<SearchResult> => ipcRenderer.invoke('file:search', dirPath, query, options)
     },
 
+    events: {
+        onFilesChanged: (callback: (event: { projectPath: string }) => void): (() => void) => {
+            const listener = (_: Electron.IpcRendererEvent, payload: { projectPath: string }) => {
+                callback(payload)
+            }
+            ipcRenderer.on('files:changed', listener)
+            return () => {
+                ipcRenderer.removeListener('files:changed', listener)
+            }
+        }
+    },
+
     // Dialog operations
     dialogs: {
         selectFolder: (): Promise<FolderResult> => ipcRenderer.invoke('dialog:selectFolder')
