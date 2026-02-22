@@ -187,7 +187,7 @@
 
 .chat-input-mention {
     border-radius: 6px;
-    padding: 1px 3px;
+    padding: 0;
     background: color-mix(in srgb, var(--accent-primary) 18%, transparent);
     color: color-mix(in srgb, var(--accent-primary) 70%, var(--text-primary));
 }
