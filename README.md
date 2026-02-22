@@ -63,4 +63,4 @@ build/         # Packaging icons/assets
 
 ## License
 
-MIT. See [LICENSE](./LICENSE).
+See [LICENSE](./LICENSE).
