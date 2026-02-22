@@ -15,10 +15,11 @@ const TABLE_DIVIDER_REGEX = /^\s*\|?(?:\s*:?-{3,}:?\s*\|)+\s*:?-{3,}:?\s*\|?\s*$
 
 
 const INLINE_MENTION_REGEX = /(^|[\s(])@([A-Za-z0-9._/-]+)/g
+const MENTION_LINK_PREFIX = 'https://mentions.rmod.local/'
 
 function annotateMentions(content: string): string {
     return content.replace(INLINE_MENTION_REGEX, (_, prefix: string, name: string) => {
-        return `${prefix}[@${name}](mention://${name})`
+        return `${prefix}[@${name}](${MENTION_LINK_PREFIX}${name})`
     })
 }
 
@@ -129,7 +130,7 @@ const markdownComponents = {
         )
     },
     a({ href, children, ...props }: any) {
-        if (typeof href === 'string' && href.startsWith('mention://')) {
+        if (typeof href === 'string' && href.startsWith(MENTION_LINK_PREFIX)) {
             return <span className="mention-token">{children}</span>
         }
 
