@@ -153,6 +153,15 @@ export function registerIpcHandlers(): void {
         }
     })
 
+    ipcMain.handle('file:mkdir', async (_, dirPath: string) => {
+        try {
+            await mkdir(dirPath, { recursive: true })
+            return { success: true }
+        } catch (error) {
+            return { success: false, error: String(error) }
+        }
+    })
+
     ipcMain.handle('file:delete', async (_, filePath: string) => {
         try {
             await unlink(filePath)

@@ -94,6 +94,8 @@ const api = {
         read: (filePath: string): Promise<FileResult> => ipcRenderer.invoke('file:read', filePath),
         write: (filePath: string, content: string): Promise<{ success: boolean; error?: string }> =>
             ipcRenderer.invoke('file:write', filePath, content),
+        mkdir: (dirPath: string): Promise<{ success: boolean; error?: string }> =>
+            ipcRenderer.invoke('file:mkdir', dirPath),
         delete: (filePath: string): Promise<{ success: boolean; error?: string }> =>
             ipcRenderer.invoke('file:delete', filePath),
         exists: (filePath: string): Promise<boolean> => ipcRenderer.invoke('file:exists', filePath),
