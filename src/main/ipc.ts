@@ -1,6 +1,6 @@
 import { ipcMain, dialog, app } from 'electron'
 import { readFile, writeFile, unlink, readdir, stat, mkdir } from 'fs/promises'
-import { join, relative, basename } from 'path'
+import { join, relative, basename, dirname } from 'path'
 import { existsSync } from 'fs'
 import Store from 'electron-store'
 
@@ -46,8 +46,56 @@ interface Checkpoint {
     id: string
     chatId: string
     messageIndex: number
-    files: { path: string; content: string }[]
+    files: { path: string; content: string; encoding?: 'base64' | 'utf-8' }[]
     createdAt: string
+}
+
+const CHECKPOINT_IGNORED_DIRS = new Set([
+    '.git',
+    '.idea',
+    '.vscode',
+    'node_modules',
+    'dist',
+    'build',
+    '.next'
+])
+
+async function collectCheckpointFiles(projectPath: string): Promise<Checkpoint['files']> {
+    const files: Checkpoint['files'] = []
+
+    async function visit(dirPath: string): Promise<void> {
+        const entries = await readdir(dirPath, { withFileTypes: true })
+
+        for (const entry of entries) {
+            const fullPath = join(dirPath, entry.name)
+            const relativePath = relative(projectPath, fullPath).replace(/\\/g, '/')
+
+            if (entry.isDirectory()) {
+                if (!CHECKPOINT_IGNORED_DIRS.has(entry.name)) {
+                    await visit(fullPath)
+                }
+                continue
+            }
+
+            if (!entry.isFile()) {
+                continue
+            }
+
+            try {
+                const content = await readFile(fullPath)
+                files.push({
+                    path: relativePath,
+                    content: content.toString('base64'),
+                    encoding: 'base64'
+                })
+            } catch {
+                // Skip unreadable files
+            }
+        }
+    }
+
+    await visit(projectPath)
+    return files
 }
 
 interface ModelPreset {
@@ -412,33 +460,7 @@ export function registerIpcHandlers(): void {
         async (_, chatId: string, messageIndex: number, projectPath: string) => {
             const checkpoints = store.get('checkpoints')
 
-            // Capture current state of all files
-            const files: { path: string; content: string }[] = []
-
-            async function captureFiles(dirPath: string): Promise<void> {
-                const entries = await readdir(dirPath, { withFileTypes: true })
-                for (const entry of entries) {
-                    const fullPath = join(dirPath, entry.name)
-                    const relativePath = relative(projectPath, fullPath)
-
-                    if (entry.isDirectory()) {
-                        await captureFiles(fullPath)
-                    } else {
-                        const ext = entry.name.split('.').pop()?.toLowerCase()
-                        const codeExts = ['lua', 'luau', 'json', 'toml', 'yaml', 'txt', 'md']
-                        if (ext && codeExts.includes(ext)) {
-                            try {
-                                const content = await readFile(fullPath, 'utf-8')
-                                files.push({ path: relativePath.replace(/\\/g, '/'), content })
-                            } catch {
-                                // Skip unreadable files
-                            }
-                        }
-                    }
-                }
-            }
-
-            await captureFiles(projectPath)
+            const files = await collectCheckpointFiles(projectPath)
 
             const newCheckpoint: Checkpoint = {
                 id: crypto.randomUUID(),
@@ -459,13 +481,27 @@ export function registerIpcHandlers(): void {
         if (!checkpoint) return { success: false, error: 'Checkpoint not found' }
 
         try {
+            const existingFiles = await collectCheckpointFiles(projectPath)
+            const checkpointFileSet = new Set(checkpoint.files.map((file) => file.path))
+
+            for (const file of existingFiles) {
+                if (!checkpointFileSet.has(file.path)) {
+                    await unlink(join(projectPath, file.path))
+                }
+            }
+
             for (const file of checkpoint.files) {
                 const fullPath = join(projectPath, file.path)
-                const dir = join(fullPath, '..')
+                const dir = dirname(fullPath)
                 if (!existsSync(dir)) {
                     await mkdir(dir, { recursive: true })
                 }
-                await writeFile(fullPath, file.content, 'utf-8')
+                const encoding = file.encoding ?? 'utf-8'
+                if (encoding === 'base64') {
+                    await writeFile(fullPath, Buffer.from(file.content, 'base64'))
+                } else {
+                    await writeFile(fullPath, file.content, 'utf-8')
+                }
             }
             return { success: true }
         } catch (error) {
