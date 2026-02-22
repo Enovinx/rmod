@@ -411,7 +411,7 @@
 }
 
 .user-message .mention-token {
-    border-color: rgba(255, 255, 255, 0.45);
-    background: rgba(255, 255, 255, 0.18);
-    color: white;
+    border-color: color-mix(in srgb, #2f1d14 55%, rgba(255, 255, 255, 0.25));
+    background: color-mix(in srgb, #2f1d14 70%, transparent);
+    color: #fff4ea;
 }
