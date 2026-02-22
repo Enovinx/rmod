@@ -29,8 +29,7 @@ interface Project {
     id: string
     name: string
     folderPath: string
-    syncMode: 'filesystem' | 'plugin'
-    pluginPort?: number
+    syncMode: 'filesystem'
     createdAt: string
     lastOpenedAt: string
 }
@@ -122,7 +121,7 @@ const api = {
     // Project operations
     projects: {
         list: (): Promise<Project[]> => ipcRenderer.invoke('projects:list'),
-        create: (project: { name: string; folderPath: string; syncMode: 'filesystem' | 'plugin'; pluginPort?: number }): Promise<Project> =>
+        create: (project: { name: string; folderPath: string; syncMode: 'filesystem' }): Promise<Project> =>
             ipcRenderer.invoke('projects:create', project),
         update: (id: string, updates: Partial<Project>): Promise<Project | null> =>
             ipcRenderer.invoke('projects:update', id, updates),
@@ -168,26 +167,6 @@ const api = {
         wipeData: (): Promise<void> => ipcRenderer.invoke('app:wipeData')
     },
 
-    // Plugin server operations
-    plugin: {
-        start: (projectId: string, port: number): Promise<{ success: boolean; error?: string }> =>
-            ipcRenderer.invoke('plugin:start', projectId, port),
-        stop: (projectId: string): Promise<{ success: boolean; error?: string }> =>
-            ipcRenderer.invoke('plugin:stop', projectId),
-        getFiles: (projectId: string): Promise<{ path: string; name: string; isDirectory: boolean; size: number }[]> =>
-            ipcRenderer.invoke('plugin:getFiles', projectId),
-        readFile: (projectId: string, filePath: string): Promise<{ success: boolean; content?: string; error?: string }> =>
-            ipcRenderer.invoke('plugin:readFile', projectId, filePath),
-        writeFile: (projectId: string, target: string, content: string, className?: string): Promise<{ success: boolean; error?: string }> =>
-            ipcRenderer.invoke('plugin:writeFile', projectId, target, content, className),
-        deleteFile: (projectId: string, target: string): Promise<{ success: boolean; error?: string }> =>
-            ipcRenderer.invoke('plugin:deleteFile', projectId, target),
-        onFilesUpdated: (callback: (projectId: string) => void) => {
-            const handler = (_: any, pid: string) => callback(pid)
-            ipcRenderer.on('plugin:files-updated', handler)
-            return () => ipcRenderer.removeListener('plugin:files-updated', handler)
-        }
-    }
 }
 
 // Type declaration for window.api

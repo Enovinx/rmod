@@ -12,7 +12,7 @@ interface AgentOptions {
     userMessage: string
     projectPath: string
     projectId: string
-    syncMode: 'filesystem' | 'plugin'
+    syncMode: 'filesystem'
     settings: Settings
     superAgentMode: boolean
     onStatusUpdate: (status: string) => void
