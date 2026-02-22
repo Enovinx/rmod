@@ -45,7 +45,7 @@ export interface Checkpoint {
     id: string
     chatId: string
     messageIndex: number
-    files: { path: string; content: string }[]
+    files: { path: string; content: string; encoding?: 'base64' | 'utf-8' }[]
     createdAt: string
 }
 
