@@ -15,7 +15,23 @@ export default function FileExplorer({ projectPath, onClose }: FileExplorerProps
     const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(['.']))
 
     useEffect(() => {
-        loadFiles()
+        setLoading(true)
+        void loadFiles()
+
+        const unsubscribe = window.api.events.onFilesChanged(({ projectPath: changedPath }) => {
+            const normalizedProjectPath = projectPath.replace(/\\/g, '/')
+            const normalizedChangedPath = changedPath.replace(/\\/g, '/')
+            if (
+                normalizedProjectPath.startsWith(normalizedChangedPath)
+                || normalizedChangedPath.startsWith(normalizedProjectPath)
+            ) {
+                void loadFiles()
+            }
+        })
+
+        return () => {
+            unsubscribe()
+        }
     }, [projectPath])
 
     const loadFiles = async () => {
