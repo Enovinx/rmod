@@ -42,5 +42,22 @@
     "react-router-dom": "^6.23.1",
     "typescript": "^5.5.2",
     "vite": "^7.3.1"
+  },
+  "build": {
+    "appId": "com.rmod.app",
+    "productName": "RMod",
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "icon": "resources/icon.ico",
+      "target": [
+        "portable"
+      ]
+    },
+    "files": [
+      "out/**/*",
+      "resources/**/*"
+    ]
   }
 }
