@@ -400,18 +400,20 @@
 .mention-token {
     display: inline-flex;
     align-items: center;
-    padding: 1px 6px;
+    padding: 2px 8px;
     border-radius: 999px;
-    border: 1px solid color-mix(in srgb, var(--accent-primary) 42%, var(--border-default));
-    background: color-mix(in srgb, var(--accent-primary) 18%, transparent);
-    color: color-mix(in srgb, var(--accent-primary) 70%, var(--text-primary));
+    border: 1px solid color-mix(in srgb, var(--accent-primary) 52%, var(--border-default));
+    background: color-mix(in srgb, var(--accent-primary) 22%, var(--bg-secondary));
+    color: color-mix(in srgb, var(--accent-primary) 78%, var(--text-primary));
     font-size: 0.92em;
     font-weight: 600;
     line-height: 1.4;
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--bg-primary) 35%, transparent);
 }
 
 .user-message .mention-token {
-    border-color: color-mix(in srgb, #2f1d14 55%, rgba(255, 255, 255, 0.25));
-    background: color-mix(in srgb, #2f1d14 70%, transparent);
-    color: #fff4ea;
+    border-color: color-mix(in srgb, white 68%, transparent);
+    background: color-mix(in srgb, white 28%, transparent);
+    color: white;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
 }
