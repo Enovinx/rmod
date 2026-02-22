@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { HashRouter , Routes, Route } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import Home from './pages/Home'
 import ProjectWorkspace from './pages/ProjectWorkspace'
@@ -55,7 +55,7 @@ export default function App() {
     }
 
     return (
-        <BrowserRouter>
+        <HashRouter>
             <div className="app-container" style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
                 {/* Drag region for titlebar */}
                 <div className="titlebar-drag-region" style={{
@@ -75,6 +75,6 @@ export default function App() {
                     </Routes>
                 </div>
             </div>
-        </BrowserRouter>
+        </HashRouter>
     )
 }

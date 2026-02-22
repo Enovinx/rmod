@@ -9,12 +9,21 @@ export default defineConfig({
     preload: {
         plugins: [externalizeDepsPlugin()]
     },
-    renderer: {
-        resolve: {
-            alias: {
-                '@': resolve('src/renderer/src')
+   renderer: {
+    resolve: {
+        alias: {
+            '@': resolve('src/renderer/src')
+        }
+    },
+    plugins: [
+        react(),
+        {
+            name: 'remove-crossorigin',
+            transformIndexHtml(html) {
+                return html.replace(/ crossorigin/g, '')
             }
-        },
-        plugins: [react()]
-    }
+        }
+    ],
+    base: './'
+}
 })

@@ -62,9 +62,8 @@
     },
     "win": {
       "icon": "resources/icon.ico",
-      "target": [
-        "portable"
-      ]
+      "target": ["nsis"],
+      "artifactName": "RMod.exe"
     },
     "files": [
       "out/**/*",
