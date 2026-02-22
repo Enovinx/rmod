@@ -3,23 +3,12 @@ import { readFile, writeFile, unlink, readdir, stat, mkdir } from 'fs/promises'
 import { join, relative, basename } from 'path'
 import { existsSync } from 'fs'
 import Store from 'electron-store'
-import {
-    startPluginServer,
-    stopPluginServer,
-    getPluginFiles,
-    getPluginFileContent,
-    pluginWriteFile,
-    pluginDeleteFile,
-    RMOD_ID_SCRIPT_PATH,
-    getRmodIdScriptContent
-} from './pluginServer'
 
 interface Project {
     id: string
     name: string
     folderPath: string
-    syncMode: 'filesystem' | 'plugin'
-    pluginPort?: number
+    syncMode: 'filesystem'
     createdAt: string
     lastOpenedAt: string
 }
@@ -158,22 +147,6 @@ export function registerIpcHandlers(): void {
             }
             await writeFile(filePath, content, 'utf-8')
 
-            // Check if this file belongs to a plugin project and sync if needed
-            const projects = store.get('projects')
-            const pluginProject = projects.find(p => p.syncMode === 'plugin' && filePath.startsWith(p.folderPath))
-
-            if (pluginProject) {
-                // Calculate relative path for the plugin (e.g. "Script.server.lua")
-                // folderPath is .../plugin_mirrors/<id>, so relative path is the file path inside
-                const relativePath = relative(pluginProject.folderPath, filePath).replace(/\\/g, '/')
-
-                // We use the existing logic in pluginServer to push the command
-                // We don't need to write to disk again (already done above), just push command
-                // But pluginWriteFile writes to memory map. We should update pluginServer to be aware of disk.
-                // For now, let's just trigger the command. We will refactor pluginServer next.
-                await pluginWriteFile(pluginProject.id, relativePath, content)
-            }
-
             return { success: true }
         } catch (error) {
             return { success: false, error: String(error) }
@@ -183,15 +156,6 @@ export function registerIpcHandlers(): void {
     ipcMain.handle('file:delete', async (_, filePath: string) => {
         try {
             await unlink(filePath)
-
-            // Check for plugin project sync
-            const projects = store.get('projects')
-            const pluginProject = projects.find(p => p.syncMode === 'plugin' && filePath.startsWith(p.folderPath))
-
-            if (pluginProject) {
-                const relativePath = relative(pluginProject.folderPath, filePath).replace(/\\/g, '/')
-                await pluginDeleteFile(pluginProject.id, relativePath)
-            }
 
             return { success: true }
         } catch (error) {
@@ -326,30 +290,10 @@ export function registerIpcHandlers(): void {
     ipcMain.handle('projects:create', async (_, project: Omit<Project, 'id' | 'createdAt' | 'lastOpenedAt'>) => {
         const projects = store.get('projects')
         const id = crypto.randomUUID()
-
-        let folderPath = project.folderPath
-        if (project.syncMode === 'plugin') {
-            folderPath = join(app.getPath('userData'), 'plugin_mirrors', id)
-            if (!existsSync(folderPath)) {
-                await mkdir(folderPath, { recursive: true })
-            }
-            // Create default Roblox folders
-            const defaultFolders = ['ReplicatedStorage', 'StarterPlayerScripts', 'ServerScriptService']
-            for (const folder of defaultFolders) {
-                const subDir = join(folderPath, folder)
-                if (!existsSync(subDir)) {
-                    await mkdir(subDir, { recursive: true })
-                }
-            }
-
-            const rmodIdScript = join(folderPath, RMOD_ID_SCRIPT_PATH)
-            await writeFile(rmodIdScript, getRmodIdScriptContent(id), 'utf-8')
-        }
-
         const newProject: Project = {
             ...project,
             id,
-            folderPath,
+            folderPath: project.folderPath,
             createdAt: new Date().toISOString(),
             lastOpenedAt: new Date().toISOString()
         }
@@ -368,21 +312,6 @@ export function registerIpcHandlers(): void {
 
     ipcMain.handle('projects:delete', async (_, id: string) => {
         const projects = store.get('projects')
-        const project = projects.find(p => p.id === id)
-
-        // Delete mirror directory if it's a plugin project
-        if (project?.syncMode === 'plugin' && project.folderPath) {
-            try {
-                // Check if it's in the userData directory to be safe
-                const userData = app.getPath('userData')
-                if (project.folderPath.startsWith(userData)) {
-                    await import('fs/promises').then(fs => fs.rm(project.folderPath, { recursive: true, force: true }))
-                }
-            } catch (err) {
-                console.error('Failed to delete mirror directory:', err)
-            }
-        }
-
         store.set(
             'projects',
             projects.filter((p) => p.id !== id)
@@ -474,20 +403,6 @@ export function registerIpcHandlers(): void {
         async (_, chatId: string, messageIndex: number, projectPath: string) => {
             const checkpoints = store.get('checkpoints')
 
-            // Resolve legacy plugin paths
-            let resolvedPath = projectPath
-            if (projectPath.startsWith('plugin:')) {
-                const chats = store.get('chats')
-                const chat = chats.find(c => c.id === chatId)
-                if (chat) {
-                    const projects = store.get('projects')
-                    const project = projects.find(p => p.id === chat.projectId)
-                    if (project) {
-                        resolvedPath = project.folderPath
-                    }
-                }
-            }
-
             // Capture current state of all files
             const files: { path: string; content: string }[] = []
 
@@ -495,7 +410,7 @@ export function registerIpcHandlers(): void {
                 const entries = await readdir(dirPath, { withFileTypes: true })
                 for (const entry of entries) {
                     const fullPath = join(dirPath, entry.name)
-                    const relativePath = relative(resolvedPath, fullPath)
+                    const relativePath = relative(projectPath, fullPath)
 
                     if (entry.isDirectory()) {
                         await captureFiles(fullPath)
@@ -514,7 +429,7 @@ export function registerIpcHandlers(): void {
                 }
             }
 
-            await captureFiles(resolvedPath)
+            await captureFiles(projectPath)
 
             const newCheckpoint: Checkpoint = {
                 id: crypto.randomUUID(),
@@ -534,23 +449,9 @@ export function registerIpcHandlers(): void {
         const checkpoint = checkpoints.find((cp) => cp.id === checkpointId)
         if (!checkpoint) return { success: false, error: 'Checkpoint not found' }
 
-        // Resolve legacy plugin paths
-        let resolvedPath = projectPath
-        if (projectPath.startsWith('plugin:')) {
-            const chats = store.get('chats')
-            const chat = chats.find(c => c.id === checkpoint.chatId)
-            if (chat) {
-                const projects = store.get('projects')
-                const project = projects.find(p => p.id === chat.projectId)
-                if (project) {
-                    resolvedPath = project.folderPath
-                }
-            }
-        }
-
         try {
             for (const file of checkpoint.files) {
-                const fullPath = join(resolvedPath, file.path)
+                const fullPath = join(projectPath, file.path)
                 const dir = join(fullPath, '..')
                 if (!existsSync(dir)) {
                     await mkdir(dir, { recursive: true })
@@ -581,67 +482,5 @@ export function registerIpcHandlers(): void {
         store.clear()
         app.relaunch()
         app.exit()
-    })
-
-    // Plugin server operations
-    ipcMain.handle('plugin:start', async (_, projectId: string, port: number) => {
-        try {
-            const projects = store.get('projects')
-            const project = projects.find(p => p.id === projectId)
-
-            let storagePath = project?.folderPath
-
-            // Backwards compatibility or safety: if folderPath is "plugin:..." or missing
-            if (!storagePath || storagePath.startsWith('plugin:')) {
-                storagePath = join(app.getPath('userData'), 'plugin_mirrors', projectId)
-                if (!existsSync(storagePath)) {
-                    await mkdir(storagePath, { recursive: true })
-                }
-            }
-
-            await startPluginServer(projectId, port, storagePath)
-            return { success: true }
-        } catch (error) {
-            return { success: false, error: String(error) }
-        }
-    })
-
-    ipcMain.handle('plugin:stop', async (_, projectId: string) => {
-        try {
-            await stopPluginServer(projectId)
-            return { success: true }
-        } catch (error) {
-            return { success: false, error: String(error) }
-        }
-    })
-
-    ipcMain.handle('plugin:getFiles', (_, projectId: string) => {
-        return getPluginFiles(projectId)
-    })
-
-    ipcMain.handle('plugin:readFile', async (_, projectId: string, filePath: string) => {
-        const content = await getPluginFileContent(projectId, filePath)
-        if (content !== null) {
-            return { success: true, content }
-        }
-        return { success: false, error: 'File not found in plugin store' }
-    })
-
-    ipcMain.handle('plugin:writeFile', (_, projectId: string, target: string, content: string, className?: string) => {
-        try {
-            pluginWriteFile(projectId, target, content, className)
-            return { success: true }
-        } catch (error) {
-            return { success: false, error: String(error) }
-        }
-    })
-
-    ipcMain.handle('plugin:deleteFile', (_, projectId: string, target: string) => {
-        try {
-            pluginDeleteFile(projectId, target)
-            return { success: true }
-        } catch (error) {
-            return { success: false, error: String(error) }
-        }
     })
 }

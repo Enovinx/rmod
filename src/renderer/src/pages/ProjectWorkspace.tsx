@@ -45,9 +45,6 @@ export default function ProjectWorkspace() {
             if (p) {
                 setProject(p)
 
-                // Start plugin server if needed
-
-
                 const chatList = await window.api.chats.list(p.id)
                 setChats(chatList.sort((a, b) =>
                     new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
@@ -59,34 +56,6 @@ export default function ProjectWorkspace() {
             setLoading(false)
         }
     }
-
-    // Manage plugin server lifecycle
-    useEffect(() => {
-        if (!project || project.syncMode !== 'plugin' || !project.pluginPort) return
-
-        const pid = project.id
-        const port = project.pluginPort
-
-        const startServer = async () => {
-            try {
-                const result = await window.api.plugin.start(pid, port)
-                if (result.success) {
-                    console.log(`Plugin server started for project ${pid} on port ${port}`)
-                } else {
-                    console.error('Failed to start plugin server:', result.error)
-                }
-            } catch (error) {
-                console.error('Error starting plugin server:', error)
-            }
-        }
-
-        startServer()
-
-        return () => {
-            console.log(`Stopping plugin server for project ${pid}`)
-            window.api.plugin.stop(pid).catch(console.error)
-        }
-    }, [project?.id, project?.syncMode, project?.pluginPort])
 
     const loadSettings = async () => {
         const s = await window.api.settings.get()
@@ -275,8 +244,6 @@ export default function ProjectWorkspace() {
                     <aside className="workspace-files" style={{ width: fileExplorerWidth }}>
                         <FileExplorer
                             projectPath={project.folderPath}
-                            projectId={project.id}
-                            syncMode={project.syncMode || 'filesystem'}
                             onClose={() => setShowFileExplorer(false)}
                         />
                     </aside>
