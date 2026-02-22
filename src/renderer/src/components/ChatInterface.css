@@ -151,17 +151,45 @@
     box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.1);
 }
 
-.chat-input {
+.chat-input-editor {
     flex: 1;
-    background: transparent;
-    border: none;
-    color: var(--text-primary);
+    position: relative;
+}
+
+.chat-input-highlight,
+.chat-input {
     font-family: inherit;
     font-size: 14px;
     line-height: 1.5;
     padding: var(--spacing-sm);
+    border: none;
     resize: none;
     max-height: 200px;
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
+}
+
+.chat-input-highlight {
+    position: absolute;
+    inset: 0;
+    color: var(--text-primary);
+    overflow: hidden;
+    pointer-events: none;
+}
+
+.chat-input {
+    width: 100%;
+    background: transparent;
+    color: transparent;
+    caret-color: var(--text-primary);
+    position: relative;
+}
+
+.chat-input-mention {
+    border-radius: 6px;
+    padding: 1px 3px;
+    background: color-mix(in srgb, var(--accent-primary) 18%, transparent);
+    color: color-mix(in srgb, var(--accent-primary) 70%, var(--text-primary));
 }
 
 .chat-input:disabled {
@@ -249,6 +277,49 @@
     gap: var(--spacing-sm);
     flex-wrap: wrap;
 }
+
+.chat-mention-suggestions {
+    margin-top: var(--spacing-sm);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
+    background: var(--bg-secondary);
+    overflow: hidden;
+}
+
+.chat-mention-suggestion {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-sm);
+    text-align: left;
+    border: none;
+    border-bottom: 1px solid var(--border-subtle);
+    background: transparent;
+    color: var(--text-primary);
+    padding: 8px 10px;
+    cursor: pointer;
+}
+
+.chat-mention-suggestion:last-child {
+    border-bottom: none;
+}
+
+.chat-mention-suggestion:hover,
+.chat-mention-suggestion.is-active {
+    background: color-mix(in srgb, var(--accent-primary) 12%, transparent);
+}
+
+.chat-mention-suggestion-path {
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.chat-mention-suggestion-name {
+    font-size: 11px;
+    color: var(--text-secondary);
+}
+
 .chat-mentions-preview {
     margin-top: var(--spacing-sm);
     display: flex;
