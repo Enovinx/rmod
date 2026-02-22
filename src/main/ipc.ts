@@ -123,6 +123,7 @@ interface Settings {
     | 'terminal'
     hasCompletedSetup: boolean
     hasSeenModelWalkthrough: boolean
+    checkpointRetentionDays: number
 }
 
 let store: Store<{
@@ -131,6 +132,24 @@ let store: Store<{
     checkpoints: Checkpoint[]
     settings: Settings
 }>
+
+function purgeExpiredCheckpoints(retentionDays: number): Checkpoint[] {
+    const checkpoints = store.get('checkpoints')
+    const safeRetentionDays = Math.max(1, Math.floor(retentionDays))
+    const maxAgeMs = safeRetentionDays * 24 * 60 * 60 * 1000
+    const cutoffTime = Date.now() - maxAgeMs
+
+    const filtered = checkpoints.filter((checkpoint) => {
+        const createdAt = new Date(checkpoint.createdAt).getTime()
+        return Number.isFinite(createdAt) && createdAt >= cutoffTime
+    })
+
+    if (filtered.length !== checkpoints.length) {
+        store.set('checkpoints', filtered)
+    }
+
+    return filtered
+}
 
 export function registerIpcHandlers(): void {
     store = new Store<{
@@ -171,12 +190,23 @@ export function registerIpcHandlers(): void {
                 ],
                 theme: 'graphite',
                 hasCompletedSetup: false,
-                hasSeenModelWalkthrough: false
+                hasSeenModelWalkthrough: false,
+                checkpointRetentionDays: 30
             }
         }
     })
 
     console.log('Store initialized at:', store.path)
+
+    const initialSettings = store.get('settings')
+    if (!Number.isFinite(initialSettings.checkpointRetentionDays)) {
+        store.set('settings', {
+            ...initialSettings,
+            checkpointRetentionDays: 30
+        })
+    }
+    purgeExpiredCheckpoints(store.get('settings').checkpointRetentionDays)
+
     // File operations
     ipcMain.handle('file:read', async (_, filePath: string) => {
         try {
@@ -335,7 +365,14 @@ export function registerIpcHandlers(): void {
 
     ipcMain.handle('settings:set', (_, settings: Partial<Settings>) => {
         const current = store.get('settings')
-        store.set('settings', { ...current, ...settings })
+        const nextSettings = { ...current, ...settings }
+        const retentionDays = Number(nextSettings.checkpointRetentionDays)
+        nextSettings.checkpointRetentionDays = Number.isFinite(retentionDays)
+            ? Math.max(1, Math.floor(retentionDays))
+            : 30
+        store.set('settings', nextSettings)
+
+        purgeExpiredCheckpoints(nextSettings.checkpointRetentionDays)
         return store.get('settings')
     })
 
@@ -451,14 +488,14 @@ export function registerIpcHandlers(): void {
 
     // Checkpoint operations
     ipcMain.handle('checkpoints:list', (_, chatId: string) => {
-        const checkpoints = store.get('checkpoints')
+        const checkpoints = purgeExpiredCheckpoints(store.get('settings').checkpointRetentionDays)
         return checkpoints.filter((cp) => cp.chatId === chatId)
     })
 
     ipcMain.handle(
         'checkpoints:create',
         async (_, chatId: string, messageIndex: number, projectPath: string) => {
-            const checkpoints = store.get('checkpoints')
+            const checkpoints = purgeExpiredCheckpoints(store.get('settings').checkpointRetentionDays)
 
             const files = await collectCheckpointFiles(projectPath)
 

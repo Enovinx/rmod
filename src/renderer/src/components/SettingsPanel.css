@@ -229,3 +229,13 @@
 .preset-item:hover .preset-delete {
     opacity: 1;
 }
+
+.retention-input-row {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+.retention-input {
+    width: 110px;
+}

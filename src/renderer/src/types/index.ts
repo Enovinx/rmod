@@ -77,6 +77,7 @@ export interface Settings {
     theme: ThemeId
     hasCompletedSetup: boolean
     hasSeenModelWalkthrough: boolean
+    checkpointRetentionDays: number
 }
 
 // File system
