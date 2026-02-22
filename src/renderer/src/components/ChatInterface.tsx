@@ -6,6 +6,52 @@ import SuperAgentPanel from './SuperAgentPanel'
 import CheckpointViewer from './CheckpointViewer'
 import './ChatInterface.css'
 
+const FILE_MENTION_REGEX = /(^|\s)@([A-Za-z0-9._/-]+)/g
+
+function extractFileMentions(text: string): string[] {
+    const mentions = new Set<string>()
+    for (const match of text.matchAll(FILE_MENTION_REGEX)) {
+        if (match[2]) mentions.add(match[2])
+    }
+    return [...mentions]
+}
+
+async function expandFileMentions(projectPath: string, text: string): Promise<string> {
+    const mentions = extractFileMentions(text)
+    if (mentions.length === 0) return text
+
+    const listResult = await window.api.files.list(projectPath, true)
+    if (!listResult.success || !listResult.files) return text
+
+    const fileEntries = listResult.files.filter(file => !file.isDirectory)
+    const pathLookup = new Map(fileEntries.map(file => [file.path.toLowerCase(), file.path]))
+    const replacements = new Map<string, string>()
+
+    for (const mention of mentions) {
+        const mentionKey = mention.toLowerCase()
+
+        if (pathLookup.has(mentionKey)) {
+            replacements.set(mention, pathLookup.get(mentionKey)!)
+            continue
+        }
+
+        const basenameMatches = fileEntries
+            .filter(file => file.name.toLowerCase() === mentionKey)
+            .map(file => file.path)
+
+        if (basenameMatches.length === 1) {
+            replacements.set(mention, basenameMatches[0])
+        }
+    }
+
+    if (replacements.size === 0) return text
+
+    return text.replace(FILE_MENTION_REGEX, (fullMatch, prefix, mentionName) => {
+        const fullPath = replacements.get(mentionName)
+        return fullPath ? `${prefix}${fullPath}` : fullMatch
+    })
+}
+
 interface ChatInterfaceProps {
     chat: Chat
     project: Project
@@ -74,12 +120,14 @@ export default function ChatInterface({
     }
 
     const userMessageRef = useRef('')
+    const mentionTokens = useMemo(() => extractFileMentions(input), [input])
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
         if (!input.trim() || isRunning) return
 
         const userMessage = input.trim()
+        const aiMessage = await expandFileMentions(project.folderPath, userMessage)
         userMessageRef.current = userMessage
         setInput('')
         setIsRunning(true)
@@ -104,7 +152,7 @@ export default function ChatInterface({
 
             await runAgent({
                 chatId: chat.id,
-                userMessage,
+                userMessage: aiMessage,
                 projectPath: project.folderPath,
                 projectId: project.id,
                 syncMode: project.syncMode || 'filesystem',
@@ -441,6 +489,13 @@ export default function ChatInterface({
                         )}
                     </button>
                 </div>
+                {mentionTokens.length > 0 && (
+                    <div className="chat-mentions-preview">
+                        {mentionTokens.map(token => (
+                            <span key={token} className="chat-mention-token">@{token}</span>
+                        ))}
+                    </div>
+                )}
             </form>
 
             {showCheckpoints && (
