@@ -7,6 +7,28 @@ function joinPath(base: string, ...parts: string[]): string {
         .replace(/\/+/g, '/')
 }
 
+type CreateFileType = 'Folder' | 'ModuleScript' | 'LocalScript' | 'ServerScript'
+
+function normalizeCreateFilePath(name: string, type: CreateFileType): string {
+    const trimmedName = name.trim().replace(/\\/g, '/').replace(/\/+$/g, '')
+    if (!trimmedName) {
+        return ''
+    }
+
+    if (type === 'Folder') {
+        return trimmedName
+    }
+
+    const extensionMap: Record<Exclude<CreateFileType, 'Folder'>, string> = {
+        ModuleScript: '.luau',
+        LocalScript: '.local.luau',
+        ServerScript: '.legacy.luau'
+    }
+
+    const fileWithoutExtension = trimmedName.replace(/\.[^/.]+(?:\.[^/.]+)?$/g, '')
+    return `${fileWithoutExtension}${extensionMap[type]}`
+}
+
 export function getTools() {
     return [
         {
@@ -95,20 +117,25 @@ export function getTools() {
             type: 'function',
             function: {
                 name: 'write_file',
-                description: 'Create a new file or overwrite an existing file with the given content.',
+                description: 'Create a new file or folder. Provide only a name (no extension needed); extension is enforced by type.',
                 parameters: {
                     type: 'object',
                     properties: {
-                        path: {
+                        name: {
                             type: 'string',
-                            description: 'Relative path where the file should be created/written'
+                            description: 'Relative name/path for the new item (without extension); if extension is provided it will be replaced based on type'
+                        },
+                        type: {
+                            type: 'string',
+                            enum: ['Folder', 'ModuleScript', 'LocalScript', 'ServerScript'],
+                            description: 'Type of item to create'
                         },
                         content: {
                             type: 'string',
-                            description: 'The content to write to the file'
+                            description: 'Optional file content. Ignored when creating a folder.'
                         }
                     },
-                    required: ['path', 'content']
+                    required: ['name', 'type']
                 }
             }
         },
@@ -262,10 +289,24 @@ async function executeFilesystemToolCall(
             }
 
             case 'write_file': {
-                const filePath = joinPath(projectPath, args.path)
-                const result = await window.api.files.write(filePath, args.content)
+                const normalizedPath = normalizeCreateFilePath(args.name, args.type)
+                if (!normalizedPath) {
+                    return { success: false, error: 'A valid file or folder name is required.' }
+                }
+
+                const fullPath = joinPath(projectPath, normalizedPath)
+
+                if (args.type === 'Folder') {
+                    const folderResult = await window.api.files.mkdir(fullPath)
+                    if (folderResult.success) {
+                        return { success: true, data: `Folder created successfully: ${normalizedPath}` }
+                    }
+                    return { success: false, error: folderResult.error || 'Failed to create folder' }
+                }
+
+                const result = await window.api.files.write(fullPath, args.content || '')
                 if (result.success) {
-                    return { success: true, data: `File written successfully: ${args.path}` }
+                    return { success: true, data: `File written successfully: ${normalizedPath}` }
                 }
                 return { success: false, error: result.error || 'Failed to write file' }
             }
