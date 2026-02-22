@@ -7,6 +7,12 @@ import CheckpointViewer from './CheckpointViewer'
 import './ChatInterface.css'
 
 const FILE_MENTION_REGEX = /(^|\s)@([A-Za-z0-9._/-]+)/g
+const ACTIVE_MENTION_REGEX = /(?:^|\s)@([A-Za-z0-9._/-]*)$/
+
+interface MentionSuggestion {
+    path: string
+    name: string
+}
 
 function extractFileMentions(text: string): string[] {
     const mentions = new Set<string>()
@@ -81,9 +87,36 @@ export default function ChatInterface({
     const [planChangeRequest, setPlanChangeRequest] = useState('')
     const [planResolver, setPlanResolver] = useState<((value: { action: 'approve' | 'revise' | 'cancel'; planText?: string; feedback?: string }) => void) | null>(null)
     const [superAgentPlan, setSuperAgentPlan] = useState<SuperAgentPlan | null>(null)
+    const [mentionSuggestions, setMentionSuggestions] = useState<MentionSuggestion[]>([])
+    const [activeMentionQuery, setActiveMentionQuery] = useState<string | null>(null)
+    const [selectedMentionIndex, setSelectedMentionIndex] = useState(0)
 
     const messagesEndRef = useRef<HTMLDivElement>(null)
     const textareaRef = useRef<HTMLTextAreaElement>(null)
+    const highlightRef = useRef<HTMLDivElement>(null)
+
+    useEffect(() => {
+        let isCancelled = false
+
+        const loadProjectFiles = async () => {
+            const listResult = await window.api.files.list(project.folderPath, true)
+            if (!listResult.success || !listResult.files || isCancelled) return
+
+            const files = listResult.files
+                .filter(file => !file.isDirectory)
+                .map(file => ({
+                    path: file.path,
+                    name: file.name
+                }))
+            setMentionSuggestions(files)
+        }
+
+        loadProjectFiles()
+
+        return () => {
+            isCancelled = true
+        }
+    }, [project.folderPath])
 
     useEffect(() => {
         scrollToBottom()
@@ -101,6 +134,27 @@ export default function ChatInterface({
             textareaRef.current.focus()
         }
     }, [chat.id, isRunning])
+
+    useEffect(() => {
+        const textarea = textareaRef.current
+        if (!textarea) {
+            setActiveMentionQuery(null)
+            return
+        }
+
+        const cursorPosition = textarea.selectionStart ?? input.length
+        const textBeforeCursor = input.slice(0, cursorPosition)
+        const mentionMatch = textBeforeCursor.match(ACTIVE_MENTION_REGEX)
+        const nextChar = input[cursorPosition]
+
+        if (!mentionMatch || (nextChar && /[A-Za-z0-9._/-]/.test(nextChar))) {
+            setActiveMentionQuery(null)
+            return
+        }
+
+        setActiveMentionQuery(mentionMatch[1] || '')
+        setSelectedMentionIndex(0)
+    }, [input])
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -121,6 +175,55 @@ export default function ChatInterface({
 
     const userMessageRef = useRef('')
     const mentionTokens = useMemo(() => extractFileMentions(input), [input])
+    const filteredMentionSuggestions = useMemo(() => {
+        if (activeMentionQuery === null) return []
+
+        const query = activeMentionQuery.toLowerCase()
+        return mentionSuggestions
+            .filter(file => {
+                if (!query) return true
+                return file.path.toLowerCase().includes(query) || file.name.toLowerCase().includes(query)
+            })
+            .slice(0, 8)
+    }, [activeMentionQuery, mentionSuggestions])
+
+    const inputHighlightMarkup = useMemo(() => {
+        const escapedInput = input
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/\n$/g, '\n\u200b')
+
+        return escapedInput.replace(FILE_MENTION_REGEX, (_match, prefix, mention) => {
+            return `${prefix}<span class="chat-input-mention">@${mention}</span>`
+        })
+    }, [input])
+
+    const applyMentionSuggestion = (suggestion: MentionSuggestion) => {
+        const textarea = textareaRef.current
+        if (!textarea) return
+
+        const cursorPosition = textarea.selectionStart ?? input.length
+        const textBeforeCursor = input.slice(0, cursorPosition)
+        const mentionMatch = textBeforeCursor.match(ACTIVE_MENTION_REGEX)
+        if (!mentionMatch) return
+
+        const queryStart = cursorPosition - mentionMatch[1].length - 1
+        const nextChar = input[cursorPosition]
+        const needsSpace = nextChar !== ' ' && nextChar !== '\n'
+
+        const mentionText = `@${suggestion.path}`
+        const updated = `${input.slice(0, queryStart)}${mentionText}${needsSpace ? ' ' : ''}${input.slice(cursorPosition)}`
+        const nextCursorPosition = queryStart + mentionText.length + (needsSpace ? 1 : 0)
+
+        setInput(updated)
+        setActiveMentionQuery(null)
+        requestAnimationFrame(() => {
+            textarea.focus()
+            textarea.selectionStart = nextCursorPosition
+            textarea.selectionEnd = nextCursorPosition
+        })
+    }
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -242,6 +345,32 @@ export default function ChatInterface({
     }
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (filteredMentionSuggestions.length > 0) {
+            if (e.key === 'ArrowDown') {
+                e.preventDefault()
+                setSelectedMentionIndex(prev => (prev + 1) % filteredMentionSuggestions.length)
+                return
+            }
+
+            if (e.key === 'ArrowUp') {
+                e.preventDefault()
+                setSelectedMentionIndex(prev => (prev - 1 + filteredMentionSuggestions.length) % filteredMentionSuggestions.length)
+                return
+            }
+
+            if (e.key === 'Tab' || e.key === 'Enter') {
+                e.preventDefault()
+                applyMentionSuggestion(filteredMentionSuggestions[selectedMentionIndex])
+                return
+            }
+
+            if (e.key === 'Escape') {
+                e.preventDefault()
+                setActiveMentionQuery(null)
+                return
+            }
+        }
+
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault()
             handleSubmit(e)
@@ -369,6 +498,11 @@ export default function ChatInterface({
         requestAnimationFrame(() => textareaRef.current?.focus())
     }
 
+    const handleInputScroll = () => {
+        if (!textareaRef.current || !highlightRef.current) return
+        highlightRef.current.scrollTop = textareaRef.current.scrollTop
+    }
+
     return (
         <div className="chat-interface">
             <header className="chat-header">
@@ -469,16 +603,20 @@ export default function ChatInterface({
 
             <form className="chat-input-form" onSubmit={handleSubmit}>
                 <div className={`chat-input-container ${isRunning ? 'is-disabled' : ''}`}>
-                    <textarea
-                        ref={textareaRef}
-                        className="chat-input"
-                        placeholder="Describe what you want to build..."
-                        value={input}
-                        onChange={e => setInput(e.target.value)}
-                        onKeyDown={handleKeyDown}
-                        rows={1}
-                        disabled={isRunning}
-                    />
+                    <div className="chat-input-editor">
+                        <div ref={highlightRef} className="chat-input-highlight" aria-hidden="true" dangerouslySetInnerHTML={{ __html: `${inputHighlightMarkup || '&nbsp;'}\n` }} />
+                        <textarea
+                            ref={textareaRef}
+                            className="chat-input"
+                            placeholder="Describe what you want to build..."
+                            value={input}
+                            onChange={e => setInput(e.target.value)}
+                            onScroll={handleInputScroll}
+                            onKeyDown={handleKeyDown}
+                            rows={1}
+                            disabled={isRunning}
+                        />
+                    </div>
                     <button type="submit" className="btn btn-primary send-btn" disabled={!input.trim() || isRunning}>
                         {isRunning ? (
                             <div className="spinner spinner-sm" />
@@ -489,6 +627,24 @@ export default function ChatInterface({
                         )}
                     </button>
                 </div>
+                {filteredMentionSuggestions.length > 0 && (
+                    <div className="chat-mention-suggestions">
+                        {filteredMentionSuggestions.map((file, index) => (
+                            <button
+                                key={file.path}
+                                type="button"
+                                className={`chat-mention-suggestion ${index === selectedMentionIndex ? 'is-active' : ''}`}
+                                onMouseDown={event => {
+                                    event.preventDefault()
+                                    applyMentionSuggestion(file)
+                                }}
+                            >
+                                <span className="chat-mention-suggestion-path">@{file.path}</span>
+                                {file.path !== file.name && <span className="chat-mention-suggestion-name">{file.name}</span>}
+                            </button>
+                        ))}
+                    </div>
+                )}
                 {mentionTokens.length > 0 && (
                     <div className="chat-mentions-preview">
                         {mentionTokens.map(token => (
