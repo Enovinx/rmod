@@ -249,3 +249,28 @@
     gap: var(--spacing-sm);
     flex-wrap: wrap;
 }
+.chat-mentions-preview {
+    margin-top: var(--spacing-sm);
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-xs);
+}
+
+.chat-mention-token {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 999px;
+    border: 1px solid color-mix(in srgb, var(--accent-primary) 45%, var(--border-default));
+    background: color-mix(in srgb, var(--accent-primary) 18%, transparent);
+    color: color-mix(in srgb, var(--accent-primary) 72%, var(--text-primary));
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+}
+
+.user-message .chat-mention-token {
+    border-color: rgba(255, 255, 255, 0.45);
+    background: rgba(255, 255, 255, 0.16);
+    color: white;
+}
