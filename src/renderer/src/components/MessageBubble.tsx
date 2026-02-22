@@ -13,6 +13,15 @@ interface MessageBubbleProps {
 const TABLE_ROW_REGEX = /^\s*\|.*\|\s*$/
 const TABLE_DIVIDER_REGEX = /^\s*\|?(?:\s*:?-{3,}:?\s*\|)+\s*:?-{3,}:?\s*\|?\s*$/
 
+
+const INLINE_MENTION_REGEX = /(^|[\s(])@([A-Za-z0-9._/-]+)/g
+
+function annotateMentions(content: string): string {
+    return content.replace(INLINE_MENTION_REGEX, (_, prefix: string, name: string) => {
+        return `${prefix}[@${name}](mention://${name})`
+    })
+}
+
 type MarkdownSegment =
     | { type: 'markdown'; content: string }
     | { type: 'table'; headers: string[]; rows: string[][] }
@@ -118,6 +127,13 @@ const markdownComponents = {
                 {children}
             </code>
         )
+    },
+    a({ href, children, ...props }: any) {
+        if (typeof href === 'string' && href.startsWith('mention://')) {
+            return <span className="mention-token">{children}</span>
+        }
+
+        return <a href={href} {...props}>{children}</a>
     }
 }
 
@@ -133,8 +149,8 @@ export default function MessageBubble({ message, showAvatar = true }: MessageBub
     const hasToolResults = Boolean(message.toolResults && message.toolResults.length > 0)
     const composedThinking = message.reasoning?.trim() || ''
     const hasThinking = Boolean(composedThinking)
-    const formattedContent = useMemo(() => parseMarkdownSegments(message.content || ''), [message.content])
-    const formattedThinking = useMemo(() => parseMarkdownSegments(composedThinking), [composedThinking])
+    const formattedContent = useMemo(() => parseMarkdownSegments(annotateMentions(message.content || '')), [message.content])
+    const formattedThinking = useMemo(() => parseMarkdownSegments(annotateMentions(composedThinking)), [composedThinking])
 
     useEffect(() => {
         if (hasThinking) {
