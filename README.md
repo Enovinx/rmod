@@ -2,6 +2,8 @@
 
 RMod is a desktop AI coding workspace built with Electron + React for **Roblox development**. It connects to OpenRouter models, lets you chat with an agent about your project, and can read/write files directly in a selected project folder.
 
+Feel free to donate to the owner here: ko-fi.com/enovinx
+
 ## Features
 
 - 🤖 **AI coding assistant** tuned for Roblox/Luau workflows.
