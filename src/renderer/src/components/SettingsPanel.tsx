@@ -465,7 +465,7 @@ export default function SettingsPanel({ settings, onChange, onClose }: SettingsP
                     <section className="settings-section">
                         <h3>About</h3>
                         <p className="text-secondary text-sm">
-                            RMod v1.0.0<br />
+                            RMod v0.0.2<br />
                             Unofficial AI-powered coding assistant for Roblox development.
                             Created by @Enovinx.
                         </p>
