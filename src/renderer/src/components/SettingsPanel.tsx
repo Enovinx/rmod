@@ -17,12 +17,53 @@ export default function SettingsPanel({ settings, onChange, onClose }: SettingsP
     const [showAddPreset, setShowAddPreset] = useState(false)
     const [showWipeConfirm, setShowWipeConfirm] = useState(false)
     const [showThemeDropdown, setShowThemeDropdown] = useState(false)
-    const [ollamaModels, setOllamaModels] = useState<{ id: string; name: string }[]>([])
+    const [ollamaModels, setOllamaModels] = useState<{ id: string; name: string; isCloud: boolean }[]>([])
     const [loadingOllama, setLoadingOllama] = useState(false)
     const [ollamaError, setOllamaError] = useState('')
     const themeDropdownRef = useRef<HTMLDivElement>(null)
 
     const selectedTheme = THEME_OPTIONS.find(theme => theme.id === settings.theme) ?? THEME_OPTIONS[0]
+
+    const fetchOllamaModels = async (rawUrl: string) => {
+        setLoadingOllama(true)
+        setOllamaError('')
+
+        try {
+            let urlToTest = rawUrl.trim()
+            if (!urlToTest.startsWith('http://') && !urlToTest.startsWith('https://')) {
+                urlToTest = 'http://' + urlToTest
+            }
+            if (urlToTest.endsWith('/')) {
+                urlToTest = urlToTest.slice(0, -1)
+            }
+
+            const response = await window.api.ai.fetch(`${urlToTest}/api/tags`)
+            if (!response.success) throw new Error(response.error || 'Could not connect')
+
+            const data = response.data || {}
+            const models = Array.isArray(data.models)
+                ? data.models.map((m: any) => ({
+                    id: m.name,
+                    name: m.name,
+                    isCloud: typeof m.name === 'string' && m.name.includes('-cloud')
+                }))
+                : []
+
+            setOllamaModels(models)
+
+            if (models.length > 0 && !models.find(m => m.id === settings.activeModelPreset)) {
+                onChange({ activeModelPreset: models[0].id })
+            }
+        } catch (err) {
+            if (err instanceof Error) {
+                console.error('Could not fetch Ollama models:', err.message)
+            }
+            setOllamaError('Could not connect')
+            setOllamaModels([])
+        } finally {
+            setLoadingOllama(false)
+        }
+    }
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -36,49 +77,6 @@ export default function SettingsPanel({ settings, onChange, onClose }: SettingsP
             if (event.key === 'Escape') {
                 setShowThemeDropdown(false)
             }
-        }
-
-        const fetchOllamaModels = async () => {
-            if (settings.provider !== 'ollama' || !settings.ollamaUrl) return
-
-            setLoadingOllama(true)
-            setOllamaError('')
-
-            try {
-                let urlToTest = settings.ollamaUrl.trim()
-                if (!urlToTest.startsWith('http://') && !urlToTest.startsWith('https://')) {
-                    urlToTest = 'http://' + urlToTest
-                }
-                if (urlToTest.endsWith('/')) {
-                    urlToTest = urlToTest.slice(0, -1)
-                }
-
-                const response = await window.api.ai.fetch(`${urlToTest}/api/tags`)
-                if (!response.success) throw new Error('Failed to fetch models: ' + response.error)
-
-                const data = response.data
-                if (data && data.models && Array.isArray(data.models)) {
-                    const models = data.models.map((m: any) => ({
-                        id: m.name,
-                        name: m.name
-                    }))
-                    setOllamaModels(models)
-
-                    // If current preset isn't an ollama model, select first available
-                    if (models.length > 0 && !models.find(m => m.id === settings.activeModelPreset)) {
-                        onChange({ activeModelPreset: models[0].id })
-                    }
-                }
-            } catch (err: any) {
-                setOllamaError('Could not fetch models from Ollama instance.')
-                setOllamaModels([])
-            } finally {
-                setLoadingOllama(false)
-            }
-        }
-
-        if (settings.provider === 'ollama') {
-            fetchOllamaModels()
         }
 
         document.addEventListener('mousedown', handleClickOutside)
@@ -115,41 +113,7 @@ export default function SettingsPanel({ settings, onChange, onClose }: SettingsP
 
             // We use a small timeout to let the user finish typing before trying to fetch
             const timer = setTimeout(() => {
-                const fetchModels = async () => {
-                    setLoadingOllama(true)
-                    setOllamaError('')
-                    try {
-                        let urlToTest = settings.ollamaUrl.trim()
-                        if (!urlToTest.startsWith('http://') && !urlToTest.startsWith('https://')) {
-                            urlToTest = 'http://' + urlToTest
-                        }
-                        if (urlToTest.endsWith('/')) {
-                            urlToTest = urlToTest.slice(0, -1)
-                        }
-
-                        const response = await window.api.ai.fetch(`${urlToTest}/api/tags`)
-                        if (!response.success) throw new Error(response.error || 'Could not connect')
-
-                        const data = response.data || {}
-                        const models = data.models?.map((m: any) => ({ id: m.name, name: m.name })) || []
-                        setOllamaModels(models)
-
-                        // Auto-select first model if current is invalid
-                        if (models.length > 0 && !models.find((m: any) => m.id === settings.activeModelPreset)) {
-                            onChange({ activeModelPreset: models[0].id })
-                        }
-                    } catch (err) {
-                        //Log the error
-
-                        if (err instanceof Error) {
-                            console.error('Message:', err.message)
-                        }
-                        setOllamaError('Could not connect')
-                    } finally {
-                        setLoadingOllama(false)
-                    }
-                }
-                fetchModels()
+                fetchOllamaModels(settings.ollamaUrl)
             }, 500)
             return () => clearTimeout(timer)
         }
@@ -410,7 +374,7 @@ export default function SettingsPanel({ settings, onChange, onClose }: SettingsP
                     ) : (
                         <section className="settings-section">
                             <div className="section-header">
-                                <h3>Local Ollama Models</h3>
+                                <h3>Available Ollama Models</h3>
                                 {loadingOllama && <div className="spinner spinner-sm" />}
                             </div>
 
@@ -419,7 +383,7 @@ export default function SettingsPanel({ settings, onChange, onClose }: SettingsP
                             )}
 
                             {!ollamaError && ollamaModels.length === 0 && !loadingOllama && (
-                                <p className="text-secondary text-sm mb-2">No models found. Make sure Ollama is running and you have downloaded at least one model (`ollama run llama3`).</p>
+                                <p className="text-secondary text-sm mb-2">No models found. Make sure Ollama is running and you are signed in if you want to use cloud models.</p>
                             )}
 
                             <div className="presets-list">
@@ -435,7 +399,10 @@ export default function SettingsPanel({ settings, onChange, onClose }: SettingsP
                                             </div>
                                         </div>
                                         <div className="preset-info">
+                                            <div className="preset-line">
                                             <span className="preset-name">{model.name}</span>
+                                            {model.isCloud && <span className="preset-cloud-badge">Cloud</span>}
+                                        </div>
                                         </div>
                                     </div>
                                 ))}
