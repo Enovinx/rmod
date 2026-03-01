@@ -17,6 +17,9 @@ export default function SettingsPanel({ settings, onChange, onClose }: SettingsP
     const [showAddPreset, setShowAddPreset] = useState(false)
     const [showWipeConfirm, setShowWipeConfirm] = useState(false)
     const [showThemeDropdown, setShowThemeDropdown] = useState(false)
+    const [ollamaModels, setOllamaModels] = useState<{ id: string; name: string }[]>([])
+    const [loadingOllama, setLoadingOllama] = useState(false)
+    const [ollamaError, setOllamaError] = useState('')
     const themeDropdownRef = useRef<HTMLDivElement>(null)
 
     const selectedTheme = THEME_OPTIONS.find(theme => theme.id === settings.theme) ?? THEME_OPTIONS[0]
@@ -35,6 +38,49 @@ export default function SettingsPanel({ settings, onChange, onClose }: SettingsP
             }
         }
 
+        const fetchOllamaModels = async () => {
+            if (settings.provider !== 'ollama' || !settings.ollamaUrl) return
+
+            setLoadingOllama(true)
+            setOllamaError('')
+
+            try {
+                let urlToTest = settings.ollamaUrl.trim()
+                if (!urlToTest.startsWith('http://') && !urlToTest.startsWith('https://')) {
+                    urlToTest = 'http://' + urlToTest
+                }
+                if (urlToTest.endsWith('/')) {
+                    urlToTest = urlToTest.slice(0, -1)
+                }
+
+                const response = await window.api.ai.fetch(`${urlToTest}/api/tags`)
+                if (!response.success) throw new Error('Failed to fetch models: ' + response.error)
+
+                const data = response.data
+                if (data && data.models && Array.isArray(data.models)) {
+                    const models = data.models.map((m: any) => ({
+                        id: m.name,
+                        name: m.name
+                    }))
+                    setOllamaModels(models)
+
+                    // If current preset isn't an ollama model, select first available
+                    if (models.length > 0 && !models.find(m => m.id === settings.activeModelPreset)) {
+                        onChange({ activeModelPreset: models[0].id })
+                    }
+                }
+            } catch (err: any) {
+                setOllamaError('Could not fetch models from Ollama instance.')
+                setOllamaModels([])
+            } finally {
+                setLoadingOllama(false)
+            }
+        }
+
+        if (settings.provider === 'ollama') {
+            fetchOllamaModels()
+        }
+
         document.addEventListener('mousedown', handleClickOutside)
         document.addEventListener('keydown', handleEscape)
 
@@ -49,12 +95,65 @@ export default function SettingsPanel({ settings, onChange, onClose }: SettingsP
     }
 
     const handleProviderChange = (provider: 'openrouter' | 'ollama') => {
-        onChange({ provider })
+        if (provider === 'ollama' && !settings.ollamaUrl?.trim()) {
+            onChange({ provider, ollamaUrl: 'http://localhost:11434' })
+        } else {
+            onChange({ provider })
+        }
     }
 
     const handleOllamaUrlChange = (url: string) => {
         onChange({ ollamaUrl: url })
     }
+
+    useEffect(() => {
+        if (settings.provider === 'ollama') {
+            if (!settings.ollamaUrl?.trim()) {
+                onChange({ ollamaUrl: 'http://localhost:11434' })
+                return () => { }
+            }
+
+            // We use a small timeout to let the user finish typing before trying to fetch
+            const timer = setTimeout(() => {
+                const fetchModels = async () => {
+                    setLoadingOllama(true)
+                    setOllamaError('')
+                    try {
+                        let urlToTest = settings.ollamaUrl.trim()
+                        if (!urlToTest.startsWith('http://') && !urlToTest.startsWith('https://')) {
+                            urlToTest = 'http://' + urlToTest
+                        }
+                        if (urlToTest.endsWith('/')) {
+                            urlToTest = urlToTest.slice(0, -1)
+                        }
+
+                        const response = await window.api.ai.fetch(`${urlToTest}/api/tags`)
+                        if (!response.success) throw new Error(response.error || 'Could not connect')
+
+                        const data = response.data || {}
+                        const models = data.models?.map((m: any) => ({ id: m.name, name: m.name })) || []
+                        setOllamaModels(models)
+
+                        // Auto-select first model if current is invalid
+                        if (models.length > 0 && !models.find((m: any) => m.id === settings.activeModelPreset)) {
+                            onChange({ activeModelPreset: models[0].id })
+                        }
+                    } catch (err) {
+                        //Log the error
+
+                        if (err instanceof Error) {
+                            console.error('Message:', err.message)
+                        }
+                        setOllamaError('Could not connect')
+                    } finally {
+                        setLoadingOllama(false)
+                    }
+                }
+                fetchModels()
+            }, 500)
+            return () => clearTimeout(timer)
+        }
+    }, [settings.provider, settings.ollamaUrl])
 
     const handlePresetChange = (presetId: string) => {
         onChange({ activeModelPreset: presetId })
@@ -228,85 +327,121 @@ export default function SettingsPanel({ settings, onChange, onClose }: SettingsP
                     </section>
 
                     {/* Model Presets */}
-                    <section className="settings-section">
-                        <div className="section-header">
-                            <h3>Model Presets</h3>
-                            <button
-                                className="btn btn-sm"
-                                onClick={() => setShowAddPreset(!showAddPreset)}
-                            >
-                                + Add
-                            </button>
-                        </div>
-
-                        {showAddPreset && (
-                            <div className="add-preset-form">
-                                <input
-                                    type="text"
-                                    className="input"
-                                    placeholder="Preset name"
-                                    value={newPresetName}
-                                    onChange={e => setNewPresetName(e.target.value)}
-                                />
-                                <input
-                                    list="model-presets"
-                                    className="input"
-                                    value={newPresetModel}
-                                    onChange={e => setNewPresetModel(e.target.value)}
-                                    placeholder="Select or enter model ID..."
-                                />
-                                <datalist id="model-presets">
-                                    {popularModels.map(m => (
-                                        <option key={m.id} value={m.id}>{m.name}</option>
-                                    ))}
-                                </datalist>
-
-                                <div className="add-preset-actions">
-                                    <button className="btn btn-sm" onClick={() => setShowAddPreset(false)}>
-                                        Cancel
-                                    </button>
-                                    <button
-                                        className="btn btn-sm btn-primary"
-                                        onClick={handleAddPreset}
-                                        disabled={!newPresetName || !newPresetModel}
-                                    >
-                                        Add Preset
-                                    </button>
-                                </div>
-                            </div>
-                        )}
-
-                        <div className="presets-list">
-                            {settings.modelPresets.map(preset => (
-                                <div
-                                    key={preset.id}
-                                    className={`preset-item ${preset.id === settings.activeModelPreset ? 'active' : ''}`}
-                                    onClick={() => handlePresetChange(preset.id)}
+                    {settings.provider === 'openrouter' ? (
+                        <section className="settings-section">
+                            <div className="section-header">
+                                <h3>Model Presets</h3>
+                                <button
+                                    className="btn btn-sm"
+                                    onClick={() => setShowAddPreset(!showAddPreset)}
                                 >
-                                    <div className="preset-radio">
-                                        <div className="radio-outer">
-                                            {preset.id === settings.activeModelPreset && <div className="radio-inner" />}
+                                    + Add
+                                </button>
+                            </div>
+
+                            {showAddPreset && (
+                                <div className="add-preset-form">
+                                    <input
+                                        type="text"
+                                        className="input"
+                                        placeholder="Preset name"
+                                        value={newPresetName}
+                                        onChange={e => setNewPresetName(e.target.value)}
+                                    />
+                                    <input
+                                        list="model-presets"
+                                        className="input"
+                                        value={newPresetModel}
+                                        onChange={e => setNewPresetModel(e.target.value)}
+                                        placeholder="Select or enter model ID..."
+                                    />
+                                    <datalist id="model-presets">
+                                        {popularModels.map(m => (
+                                            <option key={m.id} value={m.id}>{m.name}</option>
+                                        ))}
+                                    </datalist>
+
+                                    <div className="add-preset-actions">
+                                        <button className="btn btn-sm" onClick={() => setShowAddPreset(false)}>
+                                            Cancel
+                                        </button>
+                                        <button
+                                            className="btn btn-sm btn-primary"
+                                            onClick={handleAddPreset}
+                                            disabled={!newPresetName || !newPresetModel}
+                                        >
+                                            Add Preset
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="presets-list">
+                                {settings.modelPresets.map(preset => (
+                                    <div
+                                        key={preset.id}
+                                        className={`preset-item ${preset.id === settings.activeModelPreset ? 'active' : ''}`}
+                                        onClick={() => handlePresetChange(preset.id)}
+                                    >
+                                        <div className="preset-radio">
+                                            <div className="radio-outer">
+                                                {preset.id === settings.activeModelPreset && <div className="radio-inner" />}
+                                            </div>
+                                        </div>
+                                        <div className="preset-info">
+                                            <span className="preset-name">{preset.name}</span>
+                                            <span className="preset-model text-muted">{preset.modelId}</span>
+                                        </div>
+                                        {settings.modelPresets.length > 1 && (
+                                            <button
+                                                className="btn btn-ghost btn-icon preset-delete"
+                                                onClick={e => { e.stopPropagation(); handleDeletePreset(preset.id); }}
+                                            >
+                                                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                                                    <path d="M3 3L9 9M9 3L3 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                                                </svg>
+                                            </button>
+                                        )}
+                                    </div>
+                                ))}
+                                <p className="form-hint">Be aware that some model providers will collect your data for training. Look at the model on openrouter for more information, so you can decide which are suitable for your project.</p>
+                            </div>
+                        </section>
+                    ) : (
+                        <section className="settings-section">
+                            <div className="section-header">
+                                <h3>Local Ollama Models</h3>
+                                {loadingOllama && <div className="spinner spinner-sm" />}
+                            </div>
+
+                            {ollamaError && (
+                                <p className="text-danger text-sm mb-2">{ollamaError}</p>
+                            )}
+
+                            {!ollamaError && ollamaModels.length === 0 && !loadingOllama && (
+                                <p className="text-secondary text-sm mb-2">No models found. Make sure Ollama is running and you have downloaded at least one model (`ollama run llama3`).</p>
+                            )}
+
+                            <div className="presets-list">
+                                {ollamaModels.map(model => (
+                                    <div
+                                        key={model.id}
+                                        className={`preset-item ${model.id === settings.activeModelPreset ? 'active' : ''}`}
+                                        onClick={() => handlePresetChange(model.id)}
+                                    >
+                                        <div className="preset-radio">
+                                            <div className="radio-outer">
+                                                {model.id === settings.activeModelPreset && <div className="radio-inner" />}
+                                            </div>
+                                        </div>
+                                        <div className="preset-info">
+                                            <span className="preset-name">{model.name}</span>
                                         </div>
                                     </div>
-                                    <div className="preset-info">
-                                        <span className="preset-name">{preset.name}</span>
-                                        <span className="preset-model text-muted">{preset.modelId}</span>
-                                    </div>
-                                    {settings.modelPresets.length > 1 && (
-                                        <button
-                                            className="btn btn-ghost btn-icon preset-delete"
-                                            onClick={e => { e.stopPropagation(); handleDeletePreset(preset.id); }}
-                                        >
-                                            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                                                <path d="M3 3L9 9M9 3L3 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                                            </svg>
-                                        </button>
-                                    )}
-                                </div>
-                            ))}
-                            <p className="form-hint">Be aware that some model providers will collect your data for training. Look at the model on openrouter for more information, so you can decide which are suitable for your project.</p>
-                        </div>
-                    </section>
+                                ))}
+                            </div>
+                        </section>
+                    )}
 
                     <section className="settings-section">
                         <h3>Auto-Rollback Retention</h3>

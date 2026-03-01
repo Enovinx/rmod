@@ -29,13 +29,13 @@ export default function Setup({ onComplete }: SetupProps) {
                     throw new Error('Invalid API key format. OpenRouter keys start with "sk-"')
                 }
 
-                const response = await fetch('https://openrouter.ai/api/v1/models', {
+                const response = await window.api.ai.fetch('https://openrouter.ai/api/v1/models', {
                     headers: {
                         'Authorization': `Bearer ${apiKey}`
                     }
                 })
 
-                if (!response.ok) {
+                if (!response.success) {
                     throw new Error('Invalid API key')
                 }
             } else {
@@ -56,9 +56,9 @@ export default function Setup({ onComplete }: SetupProps) {
 
                 setOllamaUrl(urlToTest);
 
-                const response = await fetch(`${urlToTest}/api/tags`)
+                const response = await window.api.ai.fetch(`${urlToTest}/api/tags`)
 
-                if (!response.ok) {
+                if (!response.success) {
                     throw new Error('Could not connect to Ollama. Please ensure it is running.')
                 }
             }

@@ -1,6 +1,20 @@
 import { contextBridge, ipcRenderer } from 'electron'
 
 // Types
+interface AiFetchResult {
+    success: boolean
+    data?: any
+    text?: string
+    status?: number
+    error?: string
+}
+
+interface AiChatStreamParams {
+    requestId: string
+    url: string
+    headers: Record<string, string>
+    body: any
+}
 interface FileResult {
     success: boolean
     content?: string
@@ -194,6 +208,34 @@ const api = {
             ipcRenderer.invoke('app:getPath', name),
         wipeData: (): Promise<void> => ipcRenderer.invoke('app:wipeData')
     },
+
+    // AI/Network operations
+    ai: {
+        fetch: (url: string, options?: { headers?: Record<string, string>; method?: string; body?: string }): Promise<AiFetchResult> =>
+            ipcRenderer.invoke('ai:fetch', url, options),
+        chatStream: (params: AiChatStreamParams): Promise<{ success: boolean; status?: number; error?: string }> =>
+            ipcRenderer.invoke('ai:chatStream', params),
+        abortChatStream: (requestId: string): Promise<boolean> =>
+            ipcRenderer.invoke('ai:chatStream:abort', requestId),
+        onChatStreamChunk: (requestId: string, callback: (chunk: string) => void): (() => void) => {
+            const channel = `ai:stream:chunk:${requestId}`
+            const listener = (_: any, chunk: string) => callback(chunk)
+            ipcRenderer.on(channel, listener)
+            return () => ipcRenderer.removeListener(channel, listener)
+        },
+        onChatStreamDone: (requestId: string, callback: () => void): (() => void) => {
+            const channel = `ai:stream:done:${requestId}`
+            const listener = () => callback()
+            ipcRenderer.once(channel, listener)
+            return () => ipcRenderer.removeListener(channel, listener)
+        },
+        onChatStreamError: (requestId: string, callback: (error: string) => void): (() => void) => {
+            const channel = `ai:stream:error:${requestId}`
+            const listener = (_: any, error: string) => callback(error)
+            ipcRenderer.once(channel, listener)
+            return () => ipcRenderer.removeListener(channel, listener)
+        }
+    }
 
 }
 

@@ -110,9 +110,9 @@ export default function Home() {
                             onClick={() => setShowSettings(true)}
                             title="Settings"
                         >
-                            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                                <path d="M10 13C11.6569 13 13 11.6569 13 10C13 8.34315 11.6569 7 10 7C8.34315 7 7 8.34315 7 10C7 11.6569 8.34315 13 10 13Z" stroke="currentColor" strokeWidth="1.5" />
-                                <path d="M10 2V4M10 16V18M18 10H16M4 10H2M15.657 4.343L14.243 5.757M5.757 14.243L4.343 15.657M15.657 15.657L14.243 14.243M5.757 5.757L4.343 4.343" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M12.22 2h-.44a2 2 0 0 0-2 2v1.2a8.03 8.03 0 0 0-2.22 1l-1.03-.68a2 2 0 0 0-2.73.71l-.22.38a2 2 0 0 0 .71 2.73l1.03.68a8.03 8.03 0 0 0 0 2.44l-1.03.68a2 2 0 0 0-.71 2.73l.22.38a2 2 0 0 0 2.73.71l1.03-.68a8.03 8.03 0 0 0 2.22 1V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-1.2a8.03 8.03 0 0 0 2.22-1l1.03.68a2 2 0 0 0 2.73-.71l.22-.38a2 2 0 0 0-.71-2.73l-1.03-.68a8.03 8.03 0 0 0 0-2.44l1.03-.68a2 2 0 0 0 .71-2.73l-.22-.38a2 2 0 0 0-2.73-.71l-1.03.68a8.03 8.03 0 0 0-2.22-1V4a2 2 0 0 0-2-2z" />
+                                <circle cx="12" cy="12" r="3" />
                             </svg>
                         </button>
                         <button className="btn btn-primary" onClick={() => setShowCreateModal(true)}>

@@ -55,9 +55,9 @@ export default function ChatSidebar({
                     <span className="project-name truncate">{project.name}</span>
                 </div>
                 <button className="btn btn-ghost btn-icon" onClick={onOpenSettings} title="Settings">
-                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                        <path d="M9 11.5C10.3807 11.5 11.5 10.3807 11.5 9C11.5 7.61929 10.3807 6.5 9 6.5C7.61929 6.5 6.5 7.61929 6.5 9C6.5 10.3807 7.61929 11.5 9 11.5Z" stroke="currentColor" strokeWidth="1.5" />
-                        <path d="M9 2V3.5M9 14.5V16M16 9H14.5M3.5 9H2M14.066 3.934L13.005 4.995M4.995 13.005L3.934 14.066M14.066 14.066L13.005 13.005M4.995 4.995L3.934 3.934" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M12.22 2h-.44a2 2 0 0 0-2 2v1.2a8.03 8.03 0 0 0-2.22 1l-1.03-.68a2 2 0 0 0-2.73.71l-.22.38a2 2 0 0 0 .71 2.73l1.03.68a8.03 8.03 0 0 0 0 2.44l-1.03.68a2 2 0 0 0-.71 2.73l.22.38a2 2 0 0 0 2.73.71l1.03-.68a8.03 8.03 0 0 0 2.22 1V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-1.2a8.03 8.03 0 0 0 2.22-1l1.03.68a2 2 0 0 0 2.73-.71l.22-.38a2 2 0 0 0-.71-2.73l-1.03-.68a8.03 8.03 0 0 0 0-2.44l1.03-.68a2 2 0 0 0 .71-2.73l-.22-.38a2 2 0 0 0-2.73-.71l-1.03.68a8.03 8.03 0 0 0-2.22-1V4a2 2 0 0 0-2-2z" />
+                        <circle cx="12" cy="12" r="3" />
                     </svg>
                 </button>
             </div>
