@@ -107,7 +107,9 @@ interface ModelPreset {
 }
 
 interface Settings {
+    provider: 'openrouter' | 'ollama'
     openRouterKey: string
+    ollamaUrl: string
     activeModelPreset: string
     modelPresets: ModelPreset[]
     theme:
@@ -163,7 +165,9 @@ export function registerIpcHandlers(): void {
             chats: [],
             checkpoints: [],
             settings: {
+                provider: 'openrouter',
                 openRouterKey: '',
+                ollamaUrl: 'http://localhost:11434',
                 activeModelPreset: 'balanced',
                 modelPresets: [
                     {
@@ -569,9 +573,159 @@ export function registerIpcHandlers(): void {
         app.relaunch()
         app.exit()
     })
-}
-    const notifyFileTreeChanged = (projectPath: string): void => {
-        for (const window of BrowserWindow.getAllWindows()) {
-            window.webContents.send('files:changed', { projectPath })
+
+    // AI/Network operations - uses Node.js http/https to fully bypass CORS
+    ipcMain.handle('ai:fetch', async (_, url: string, options?: { headers?: Record<string, string>; method?: string; body?: string }) => {
+        const http = require('http')
+        const https = require('https')
+
+        return new Promise((resolve) => {
+            try {
+                const parsed = new URL(url)
+                const client = parsed.protocol === 'https:' ? https : http
+
+                const reqOptions: any = {
+                    hostname: parsed.hostname,
+                    port: parsed.port || (parsed.protocol === 'https:' ? 443 : 80),
+                    path: parsed.pathname + parsed.search,
+                    method: options?.method || 'GET',
+                    headers: options?.headers || {}
+                }
+
+                const req = client.request(reqOptions, (res: any) => {
+                    const chunks: Buffer[] = []
+                    res.on('data', (chunk: Buffer) => chunks.push(chunk))
+                    res.on('end', () => {
+                        const body = Buffer.concat(chunks).toString('utf-8')
+                        if (res.statusCode < 200 || res.statusCode >= 300) {
+                            resolve({ success: false, status: res.statusCode, error: body || res.statusMessage })
+                            return
+                        }
+                        try {
+                            const data = JSON.parse(body)
+                            resolve({ success: true, data })
+                        } catch {
+                            resolve({ success: true, text: body })
+                        }
+                    })
+                })
+
+                req.on('error', (err: any) => {
+                    console.error('ai:fetch error:', err)
+                    resolve({ success: false, error: err.message || String(err) })
+                })
+
+                if (options?.body) {
+                    req.write(options.body)
+                }
+                req.end()
+            } catch (error: any) {
+                console.error('ai:fetch error:', error)
+                resolve({ success: false, error: error.message || String(error) })
+            }
+        })
+    })
+
+    const activeStreams = new Map<string, { abort: () => void }>()
+
+    ipcMain.handle('ai:chatStream', async (event, params: {
+        requestId: string
+        url: string
+        headers: Record<string, string>
+        body: any
+    }) => {
+        const http = require('http')
+        const https = require('https')
+
+        const { requestId, url, headers, body } = params
+        const webContents = event.sender
+
+        return new Promise((resolve) => {
+            try {
+                const parsed = new URL(url)
+                const client = parsed.protocol === 'https:' ? https : http
+
+                const reqOptions: any = {
+                    hostname: parsed.hostname,
+                    port: parsed.port || (parsed.protocol === 'https:' ? 443 : 80),
+                    path: parsed.pathname + parsed.search,
+                    method: 'POST',
+                    headers: {
+                        ...headers,
+                        'Content-Type': 'application/json'
+                    }
+                }
+
+                const req = client.request(reqOptions, (res: any) => {
+                    if (res.statusCode < 200 || res.statusCode >= 300) {
+                        const chunks: Buffer[] = []
+                        res.on('data', (chunk: Buffer) => chunks.push(chunk))
+                        res.on('end', () => {
+                            const errorText = Buffer.concat(chunks).toString('utf-8')
+                            activeStreams.delete(requestId)
+                            resolve({ success: false, status: res.statusCode, error: errorText || res.statusMessage })
+                        })
+                        return
+                    }
+
+                    // Stream is ready, resolve immediately
+                    resolve({ success: true })
+
+                    res.on('data', (chunk: Buffer) => {
+                        if (!webContents.isDestroyed()) {
+                            webContents.send(`ai:stream:chunk:${requestId}`, chunk.toString('utf-8'))
+                        }
+                    })
+
+                    res.on('end', () => {
+                        activeStreams.delete(requestId)
+                        if (!webContents.isDestroyed()) {
+                            webContents.send(`ai:stream:done:${requestId}`)
+                        }
+                    })
+
+                    res.on('error', (err: any) => {
+                        activeStreams.delete(requestId)
+                        if (!webContents.isDestroyed()) {
+                            webContents.send(`ai:stream:error:${requestId}`, err.message || String(err))
+                        }
+                    })
+                })
+
+                req.on('error', (err: any) => {
+                    activeStreams.delete(requestId)
+                    console.error('ai:chatStream error:', err)
+                    resolve({ success: false, error: err.message || String(err) })
+                })
+
+                activeStreams.set(requestId, {
+                    abort: () => {
+                        req.destroy()
+                        activeStreams.delete(requestId)
+                    }
+                })
+
+                req.write(JSON.stringify(body))
+                req.end()
+            } catch (error: any) {
+                activeStreams.delete(requestId)
+                console.error('ai:chatStream error:', error)
+                resolve({ success: false, error: error.message || String(error) })
+            }
+        })
+    })
+
+    ipcMain.handle('ai:chatStream:abort', (_, requestId: string) => {
+        const stream = activeStreams.get(requestId)
+        if (stream) {
+            stream.abort()
+            return true
         }
+        return false
+    })
+}
+const notifyFileTreeChanged = (projectPath: string): void => {
+    for (const window of BrowserWindow.getAllWindows()) {
+        window.webContents.send('files:changed', { projectPath })
     }
+}

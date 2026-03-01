@@ -55,19 +55,37 @@
     "vite": "^7.3.1"
   },
   "build": {
-    "appId": "com.rmod.app",
-    "productName": "RMod",
-    "directories": {
-      "output": "dist"
-    },
-    "win": {
-      "icon": "resources/icon.ico",
-      "target": ["nsis"],
-      "artifactName": "RMod.exe"
-    },
-    "files": [
-      "out/**/*",
-      "resources/**/*"
+  "appId": "com.rmod.app",
+  "productName": "RMod",
+  "directories": {
+    "output": "dist"
+  },
+  "win": {
+    "icon": "resources/icon.ico",
+    "target": ["nsis"],
+    "artifactName": "RMod.exe"
+  },
+  "mac": {
+    "icon": "resources/icon.icns",
+    "target": [
+      {
+        "target": "dmg",
+        "arch": ["x64", "arm64"]
+      }
+    ],
+    "category": "public.app-category.utilities"
+  },
+  "dmg": {
+    "artifactName": "RMod.dmg",
+    "title": "RMod Installer",
+    "contents": [
+      { "x": 130, "y": 220 },
+      { "x": 410, "y": 220, "type": "link", "path": "/Applications" }
     ]
+  },
+  "files": [
+    "out/**/*",
+    "resources/**/*"
+  ] 
   }
 }

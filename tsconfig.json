@@ -5,5 +5,13 @@
         "moduleResolution": "Node",
         "allowSyntheticDefaultImports": true,
         "esModuleInterop": true
-    }
+    },
+    "references": [
+        {
+            "path": "./tsconfig.node.json"
+        },
+        {
+            "path": "./tsconfig.web.json"
+        }
+    ]
 }

@@ -120,108 +120,159 @@ function parsePlanTasks(planText: string): SuperAgentPlanTaskPayload[] {
 }
 
 async function streamChatCompletion(params: {
+    provider: 'openrouter' | 'ollama'
     presetModelId: string
     messages: any[]
     tools: any[]
     temperature: number
     maxTokens: number
     openRouterKey: string
+    ollamaUrl: string
     signal?: AbortSignal
     onToken?: (content: string) => void
 }): Promise<{ message: StreamedAssistantMessage; finishReason?: string }> {
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${params.openRouterKey}`,
-            'HTTP-Referer': 'https://rmod.app',
-            'X-Title': 'RMod'
-        },
-        body: JSON.stringify({
-            model: params.presetModelId,
-            messages: params.messages,
-            tools: params.tools,
-            tool_choice: 'auto',
-            include_reasoning: true,
-            temperature: params.temperature,
-            max_tokens: params.maxTokens,
-            stream: true
-        }),
-        signal: params.signal
+    const url = params.provider === 'ollama'
+        ? `${params.ollamaUrl}/v1/chat/completions`
+        : 'https://openrouter.ai/api/v1/chat/completions'
+
+    const headers: Record<string, string> = {
+        'Content-Type': 'application/json'
+    }
+
+    if (params.provider === 'openrouter') {
+        headers['Authorization'] = `Bearer ${params.openRouterKey}`
+        headers['HTTP-Referer'] = 'https://rmod.app'
+        headers['X-Title'] = 'RMod'
+    }
+
+    const requestId = crypto.randomUUID()
+
+    const body = {
+        model: params.presetModelId,
+        messages: params.messages,
+        tools: params.tools?.length ? params.tools : undefined,
+        tool_choice: params.tools?.length ? 'auto' : undefined,
+        include_reasoning: true,
+        temperature: params.temperature,
+        max_tokens: params.maxTokens,
+        stream: true
+    }
+
+    let startResult = await window.api.ai.chatStream({
+        requestId,
+        url,
+        headers,
+        body
     })
 
-    if (!response.ok) {
-        const error = await response.text()
-        throw new Error(`API error: ${response.status} - ${error}`)
+    if (!startResult.success && startResult.status === 400 && typeof startResult.error === 'string' && startResult.error.includes('does not support tools')) {
+        // Retry without tools
+        body.tools = undefined
+        body.tool_choice = undefined
+        startResult = await window.api.ai.chatStream({
+            requestId,
+            url,
+            headers,
+            body
+        })
     }
 
-    if (!response.body) {
-        throw new Error('Streaming unavailable: response body is empty')
+    if (!startResult.success) {
+        throw new Error(`API error: ${startResult.status || ''} - ${startResult.error}`)
     }
 
-    const reader = response.body.getReader()
-    const decoder = new TextDecoder()
-    let buffer = ''
     let finishReason: string | undefined
     const assembled: StreamedAssistantMessage = { content: '', tool_calls: [] }
 
-    while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
+    return new Promise((resolve, reject) => {
+        let buffer = ''
+        let abortHandler: (() => void) | undefined
 
-        buffer += decoder.decode(value, { stream: true })
-        const events = buffer.split('\n\n')
-        buffer = events.pop() || ''
-
-        for (const event of events) {
-            const line = event
-                .split('\n')
-                .find((entry) => entry.trim().startsWith('data:'))
-
-            if (!line) continue
-            const data = line.replace(/^data:\s*/, '').trim()
-            if (!data || data === '[DONE]') continue
-
-            let parsed: any
-            try {
-                parsed = JSON.parse(data)
-            } catch {
-                continue
+        // Set up signal handler if provided
+        if (params.signal) {
+            abortHandler = () => {
+                window.api.ai.abortChatStream(requestId)
+                reject(new Error('Aborted by user'))
             }
-
-            const delta = parsed?.choices?.[0]?.delta || {}
-            finishReason = parsed?.choices?.[0]?.finish_reason ?? finishReason
-
-            if (typeof delta.content === 'string' && delta.content.length > 0) {
-                assembled.content += delta.content
-                params.onToken?.(assembled.content)
-            }
-
-            if (typeof delta.reasoning === 'string' && delta.reasoning.length > 0) {
-                assembled.reasoning = (assembled.reasoning || '') + delta.reasoning
-            }
-
-            if (Array.isArray(delta.tool_calls)) {
-                for (const toolCallChunk of delta.tool_calls) {
-                    const idx = toolCallChunk.index ?? 0
-                    if (!assembled.tool_calls![idx]) {
-                        assembled.tool_calls![idx] = {
-                            id: '',
-                            type: 'function',
-                            function: { name: '', arguments: '' }
-                        }
-                    }
-
-                    const target = assembled.tool_calls![idx]
-                    if (toolCallChunk.id) target.id = toolCallChunk.id
-                    if (toolCallChunk.function?.name) target.function.name += toolCallChunk.function.name
-                    if (toolCallChunk.function?.arguments) target.function.arguments += toolCallChunk.function.arguments
-                }
+            params.signal.addEventListener('abort', abortHandler)
+            if (params.signal.aborted) {
+                // Instantly abort
+                abortHandler()
+                return
             }
         }
-    }
 
-    return { message: assembled, finishReason }
+        const cleanup = () => {
+            unsubChunk()
+            unsubDone()
+            unsubError()
+            if (abortHandler && params.signal) {
+                params.signal.removeEventListener('abort', abortHandler)
+            }
+        }
+
+        const unsubChunk = window.api.ai.onChatStreamChunk(requestId, (chunk) => {
+            buffer += chunk
+            const events = buffer.split('\n\n')
+            buffer = events.pop() || ''
+
+            for (const event of events) {
+                const line = event
+                    .split('\n')
+                    .find((entry) => entry.trim().startsWith('data:'))
+
+                if (!line) continue
+                const data = line.replace(/^data:\s*/, '').trim()
+                if (!data || data === '[DONE]') continue
+
+                let parsed: any
+                try {
+                    parsed = JSON.parse(data)
+                } catch {
+                    continue
+                }
+
+                const delta = parsed?.choices?.[0]?.delta || {}
+                finishReason = parsed?.choices?.[0]?.finish_reason ?? finishReason
+
+                if (typeof delta.content === 'string' && delta.content.length > 0) {
+                    assembled.content += delta.content
+                    params.onToken?.(assembled.content)
+                }
+
+                if (typeof delta.reasoning === 'string' && delta.reasoning.length > 0) {
+                    assembled.reasoning = (assembled.reasoning || '') + delta.reasoning
+                }
+
+                if (Array.isArray(delta.tool_calls)) {
+                    for (const toolCallChunk of delta.tool_calls) {
+                        const idx = toolCallChunk.index ?? 0
+                        if (!assembled.tool_calls![idx]) {
+                            assembled.tool_calls![idx] = {
+                                id: '',
+                                type: 'function',
+                                function: { name: '', arguments: '' }
+                            }
+                        }
+
+                        const target = assembled.tool_calls![idx]
+                        if (toolCallChunk.id) target.id = toolCallChunk.id
+                        if (toolCallChunk.function?.name) target.function.name += toolCallChunk.function.name
+                    }
+                }
+            }
+        })
+
+        const unsubDone = window.api.ai.onChatStreamDone(requestId, () => {
+            cleanup()
+            resolve({ message: assembled, finishReason })
+        })
+
+        const unsubError = window.api.ai.onChatStreamError(requestId, (error) => {
+            cleanup()
+            reject(new Error(error))
+        })
+    })
 }
 
 export async function runAgent(options: AgentOptions): Promise<void> {
@@ -279,12 +330,14 @@ export async function runAgent(options: AgentOptions): Promise<void> {
             }
 
             const { message: assistantMessage, finishReason } = await streamChatCompletion({
-                presetModelId: preset.modelId,
+                provider: settings.provider,
+                presetModelId: settings.provider === 'ollama' ? settings.activeModelPreset : preset.modelId,
                 messages: callMessages,
                 tools,
                 temperature: preset.temperature,
                 maxTokens: preset.maxTokens,
                 openRouterKey: settings.openRouterKey,
+                ollamaUrl: settings.ollamaUrl,
                 signal,
                 onToken: onStreamUpdate
             })

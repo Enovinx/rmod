@@ -71,7 +71,9 @@ export type ThemeId =
     | 'terminal'
 
 export interface Settings {
+    provider: 'openrouter' | 'ollama'
     openRouterKey: string
+    ollamaUrl: string
     activeModelPreset: string
     modelPresets: ModelPreset[]
     theme: ThemeId

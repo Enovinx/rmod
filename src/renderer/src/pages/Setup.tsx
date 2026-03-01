@@ -2,47 +2,71 @@ import { useState } from 'react'
 import './Setup.css'
 
 interface SetupProps {
-    onComplete: (key: string) => void
+    onComplete: (settings: { provider: 'openrouter' | 'ollama'; openRouterKey?: string; ollamaUrl?: string }) => void
 }
 
 export default function Setup({ onComplete }: SetupProps) {
     const [step, setStep] = useState(0) // 0 = API Key, 1-4 = Onboarding Cards
+    const [provider, setProvider] = useState<'openrouter' | 'ollama'>('openrouter')
     const [apiKey, setApiKey] = useState('')
+    const [ollamaUrl, setOllamaUrl] = useState('http://localhost:11434')
     const [error, setError] = useState('')
     const [loading, setLoading] = useState(false)
 
-    const handleApiKeySubmit = async (e: React.FormEvent) => {
+    const handleSetupSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
-
-        if (!apiKey.trim()) {
-            setError('Please enter your OpenRouter API key')
-            return
-        }
-
-        if (!apiKey.startsWith('sk-')) {
-            setError('Invalid API key format. OpenRouter keys start with "sk-"')
-            return
-        }
 
         setLoading(true)
         setError('')
 
         try {
-            // Test the API key
-            const response = await fetch('https://openrouter.ai/api/v1/models', {
-                headers: {
-                    'Authorization': `Bearer ${apiKey}`
+            if (provider === 'openrouter') {
+                if (!apiKey.trim()) {
+                    throw new Error('Please enter your OpenRouter API key')
                 }
-            })
 
-            if (!response.ok) {
-                throw new Error('Invalid API key')
+                if (!apiKey.startsWith('sk-')) {
+                    throw new Error('Invalid API key format. OpenRouter keys start with "sk-"')
+                }
+
+                const response = await window.api.ai.fetch('https://openrouter.ai/api/v1/models', {
+                    headers: {
+                        'Authorization': `Bearer ${apiKey}`
+                    }
+                })
+
+                if (!response.success) {
+                    throw new Error('Invalid API key')
+                }
+            } else {
+                if (!ollamaUrl.trim()) {
+                    throw new Error('Please enter your Ollama URL')
+                }
+
+                // Try to format domain
+                let urlToTest = ollamaUrl.trim();
+                if (!urlToTest.startsWith('http://') && !urlToTest.startsWith('https://')) {
+                    urlToTest = 'http://' + urlToTest;
+                }
+
+                // Ensure no trailing slash for consistent testing
+                if (urlToTest.endsWith('/')) {
+                    urlToTest = urlToTest.slice(0, -1);
+                }
+
+                setOllamaUrl(urlToTest);
+
+                const response = await window.api.ai.fetch(`${urlToTest}/api/tags`)
+
+                if (!response.success) {
+                    throw new Error('Could not connect to Ollama. Please ensure it is running.')
+                }
             }
 
             // Move to next step instead of completing immediately
             setStep(1)
-        } catch {
-            setError('Could not validate API key. Please check and try again.')
+        } catch (err: any) {
+            setError(err.message || 'Validation failed. Please check your settings and try again.')
         } finally {
             setLoading(false)
         }
@@ -52,7 +76,10 @@ export default function Setup({ onComplete }: SetupProps) {
         if (step < 4) {
             setStep(step + 1)
         } else {
-            onComplete(apiKey)
+            onComplete({
+                provider,
+                ...(provider === 'openrouter' ? { openRouterKey: apiKey } : { ollamaUrl })
+            })
         }
     }
 
@@ -84,25 +111,62 @@ export default function Setup({ onComplete }: SetupProps) {
                 AI-powered coding assistant for Roblox development
             </p>
 
-            <form onSubmit={handleApiKeySubmit} className="setup-form">
-                <div className="form-group">
-                    <label htmlFor="apiKey">OpenRouter API Key</label>
-                    <input
-                        id="apiKey"
-                        type="password"
-                        className="input"
-                        placeholder="sk-or-v1-..."
-                        value={apiKey}
-                        onChange={(e) => setApiKey(e.target.value)}
-                        disabled={loading}
-                    />
-                    <p className="form-hint">
-                        Get your API key at{' '}
-                        <a href="https://openrouter.ai/keys" target="_blank" rel="noopener noreferrer">
-                            openrouter.ai/keys
-                        </a>
-                    </p>
+            <form onSubmit={handleSetupSubmit} className="setup-form">
+                <div className="provider-selector" style={{ display: 'flex', gap: '8px', marginBottom: '16px', background: 'var(--bg-tertiary)', padding: '4px', borderRadius: '8px' }}>
+                    <button
+                        type="button"
+                        className={`btn ${provider === 'openrouter' ? 'btn-primary' : 'btn-ghost'}`}
+                        style={{ flex: 1 }}
+                        onClick={() => { setProvider('openrouter'); setError(''); }}
+                    >
+                        OpenRouter
+                    </button>
+                    <button
+                        type="button"
+                        className={`btn ${provider === 'ollama' ? 'btn-primary' : 'btn-ghost'}`}
+                        style={{ flex: 1 }}
+                        onClick={() => { setProvider('ollama'); setError(''); }}
+                    >
+                        Ollama (Local)
+                    </button>
                 </div>
+
+                {provider === 'openrouter' ? (
+                    <div className="form-group">
+                        <label htmlFor="apiKey">OpenRouter API Key</label>
+                        <input
+                            id="apiKey"
+                            type="password"
+                            className="input"
+                            placeholder="sk-or-v1-..."
+                            value={apiKey}
+                            onChange={(e) => setApiKey(e.target.value)}
+                            disabled={loading}
+                        />
+                        <p className="form-hint">
+                            Get your API key at{' '}
+                            <a href="https://openrouter.ai/keys" target="_blank" rel="noopener noreferrer">
+                                openrouter.ai/keys
+                            </a>
+                        </p>
+                    </div>
+                ) : (
+                    <div className="form-group">
+                        <label htmlFor="ollamaUrl">Ollama URL</label>
+                        <input
+                            id="ollamaUrl"
+                            type="text"
+                            className="input"
+                            placeholder="http://localhost:11434"
+                            value={ollamaUrl}
+                            onChange={(e) => setOllamaUrl(e.target.value)}
+                            disabled={loading}
+                        />
+                        <p className="form-hint">
+                            Ensure Ollama is running and accessible. Default is `http://localhost:11434`.
+                        </p>
+                    </div>
+                )}
 
                 {error && <div className="error-message">{error}</div>}
 
