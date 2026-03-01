@@ -120,23 +120,34 @@ function parsePlanTasks(planText: string): SuperAgentPlanTaskPayload[] {
 }
 
 async function streamChatCompletion(params: {
+    provider: 'openrouter' | 'ollama'
     presetModelId: string
     messages: any[]
     tools: any[]
     temperature: number
     maxTokens: number
     openRouterKey: string
+    ollamaUrl: string
     signal?: AbortSignal
     onToken?: (content: string) => void
 }): Promise<{ message: StreamedAssistantMessage; finishReason?: string }> {
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    const url = params.provider === 'ollama'
+        ? `${params.ollamaUrl}/v1/chat/completions`
+        : 'https://openrouter.ai/api/v1/chat/completions'
+
+    const headers: Record<string, string> = {
+        'Content-Type': 'application/json'
+    }
+
+    if (params.provider === 'openrouter') {
+        headers['Authorization'] = `Bearer ${params.openRouterKey}`
+        headers['HTTP-Referer'] = 'https://rmod.app'
+        headers['X-Title'] = 'RMod'
+    }
+
+    const response = await fetch(url, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${params.openRouterKey}`,
-            'HTTP-Referer': 'https://rmod.app',
-            'X-Title': 'RMod'
-        },
+        headers,
         body: JSON.stringify({
             model: params.presetModelId,
             messages: params.messages,
@@ -279,12 +290,14 @@ export async function runAgent(options: AgentOptions): Promise<void> {
             }
 
             const { message: assistantMessage, finishReason } = await streamChatCompletion({
+                provider: settings.provider,
                 presetModelId: preset.modelId,
                 messages: callMessages,
                 tools,
                 temperature: preset.temperature,
                 maxTokens: preset.maxTokens,
                 openRouterKey: settings.openRouterKey,
+                ollamaUrl: settings.ollamaUrl,
                 signal,
                 onToken: onStreamUpdate
             })

@@ -80,7 +80,9 @@ interface ModelPreset {
 }
 
 interface Settings {
+    provider: 'openrouter' | 'ollama'
     openRouterKey: string
+    ollamaUrl: string
     activeModelPreset: string
     modelPresets: ModelPreset[]
     theme:

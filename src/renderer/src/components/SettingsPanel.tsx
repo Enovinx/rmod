@@ -48,6 +48,14 @@ export default function SettingsPanel({ settings, onChange, onClose }: SettingsP
         onChange({ openRouterKey: key })
     }
 
+    const handleProviderChange = (provider: 'openrouter' | 'ollama') => {
+        onChange({ provider })
+    }
+
+    const handleOllamaUrlChange = (url: string) => {
+        onChange({ ollamaUrl: url })
+    }
+
     const handlePresetChange = (presetId: string) => {
         onChange({ activeModelPreset: presetId })
     }
@@ -115,31 +123,72 @@ export default function SettingsPanel({ settings, onChange, onClose }: SettingsP
                 </div>
 
                 <div className="settings-content">
-                    {/* API Key */}
+                    {/* Provider Selection */}
                     <section className="settings-section">
-                        <h3>OpenRouter API Key</h3>
-                        <div className="api-key-input">
-                            <input
-                                type={showApiKey ? 'text' : 'password'}
-                                className="input"
-                                value={settings.openRouterKey}
-                                onChange={e => handleApiKeyChange(e.target.value)}
-                                placeholder="sk-or-v1-..."
-                            />
+                        <h3>Model Provider</h3>
+                        <div className="provider-selector" style={{ display: 'flex', gap: '8px', marginBottom: '16px', background: 'var(--bg-tertiary)', padding: '4px', borderRadius: '8px' }}>
                             <button
-                                className="btn btn-ghost btn-icon"
-                                onClick={() => setShowApiKey(!showApiKey)}
-                                title={showApiKey ? 'Hide' : 'Show'}
+                                type="button"
+                                className={`btn ${settings.provider === 'openrouter' ? 'btn-primary' : 'btn-ghost'}`}
+                                style={{ flex: 1 }}
+                                onClick={() => handleProviderChange('openrouter')}
                             >
-                                {showApiKey ? '👁️' : '👁️‍🗨️'}
+                                OpenRouter
+                            </button>
+                            <button
+                                type="button"
+                                className={`btn ${settings.provider === 'ollama' ? 'btn-primary' : 'btn-ghost'}`}
+                                style={{ flex: 1 }}
+                                onClick={() => handleProviderChange('ollama')}
+                            >
+                                Ollama (Local)
                             </button>
                         </div>
-                        <p className="form-hint">
-                            <a href="https://openrouter.ai/keys" target="_blank" rel="noopener noreferrer">
-                                Get your API key →
-                            </a>
-                        </p>
                     </section>
+
+                    {/* API Key / Ollama URL */}
+                    {settings.provider === 'openrouter' ? (
+                        <section className="settings-section">
+                            <h3>OpenRouter API Key</h3>
+                            <div className="api-key-input">
+                                <input
+                                    type={showApiKey ? 'text' : 'password'}
+                                    className="input"
+                                    value={settings.openRouterKey}
+                                    onChange={e => handleApiKeyChange(e.target.value)}
+                                    placeholder="sk-or-v1-..."
+                                />
+                                <button
+                                    className="btn btn-ghost btn-icon"
+                                    onClick={() => setShowApiKey(!showApiKey)}
+                                    title={showApiKey ? 'Hide' : 'Show'}
+                                >
+                                    {showApiKey ? '👁️' : '👁️‍🗨️'}
+                                </button>
+                            </div>
+                            <p className="form-hint">
+                                <a href="https://openrouter.ai/keys" target="_blank" rel="noopener noreferrer">
+                                    Get your API key →
+                                </a>
+                            </p>
+                        </section>
+                    ) : (
+                        <section className="settings-section">
+                            <h3>Ollama URL</h3>
+                            <div className="api-key-input">
+                                <input
+                                    type="text"
+                                    className="input"
+                                    value={settings.ollamaUrl || 'http://localhost:11434'}
+                                    onChange={e => handleOllamaUrlChange(e.target.value)}
+                                    placeholder="http://localhost:11434"
+                                />
+                            </div>
+                            <p className="form-hint">
+                                Local URL where your Ollama instance is running.
+                            </p>
+                        </section>
+                    )}
 
                     {/* Model Presets */}
                     <section className="settings-section">
@@ -211,7 +260,7 @@ export default function SettingsPanel({ settings, onChange, onClose }: SettingsP
                                         <option key={m.id} value={m.id}>{m.name}</option>
                                     ))}
                                 </datalist>
-                               
+
                                 <div className="add-preset-actions">
                                     <button className="btn btn-sm" onClick={() => setShowAddPreset(false)}>
                                         Cancel
@@ -226,7 +275,7 @@ export default function SettingsPanel({ settings, onChange, onClose }: SettingsP
                                 </div>
                             </div>
                         )}
-                       
+
                         <div className="presets-list">
                             {settings.modelPresets.map(preset => (
                                 <div

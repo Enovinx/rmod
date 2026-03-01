@@ -107,7 +107,9 @@ interface ModelPreset {
 }
 
 interface Settings {
+    provider: 'openrouter' | 'ollama'
     openRouterKey: string
+    ollamaUrl: string
     activeModelPreset: string
     modelPresets: ModelPreset[]
     theme:
@@ -163,7 +165,9 @@ export function registerIpcHandlers(): void {
             chats: [],
             checkpoints: [],
             settings: {
+                provider: 'openrouter',
                 openRouterKey: '',
+                ollamaUrl: 'http://localhost:11434',
                 activeModelPreset: 'balanced',
                 modelPresets: [
                     {
@@ -570,8 +574,8 @@ export function registerIpcHandlers(): void {
         app.exit()
     })
 }
-    const notifyFileTreeChanged = (projectPath: string): void => {
-        for (const window of BrowserWindow.getAllWindows()) {
-            window.webContents.send('files:changed', { projectPath })
-        }
+const notifyFileTreeChanged = (projectPath: string): void => {
+    for (const window of BrowserWindow.getAllWindows()) {
+        window.webContents.send('files:changed', { projectPath })
     }
+}

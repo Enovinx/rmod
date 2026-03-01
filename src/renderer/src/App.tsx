@@ -1,4 +1,4 @@
-import { HashRouter , Routes, Route } from 'react-router-dom'
+import { HashRouter, Routes, Route } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import Home from './pages/Home'
 import ProjectWorkspace from './pages/ProjectWorkspace'
@@ -33,9 +33,9 @@ export default function App() {
         }
     }
 
-    const handleSetupComplete = async (key: string) => {
+    const handleSetupComplete = async (setupData: { provider: 'openrouter' | 'ollama'; openRouterKey?: string; ollamaUrl?: string }) => {
         const updated = await window.api.settings.set({
-            openRouterKey: key,
+            ...setupData,
             hasCompletedSetup: true
         })
         setSettings(updated)
