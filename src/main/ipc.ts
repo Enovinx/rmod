@@ -29,6 +29,7 @@ interface Message {
     toolCalls?: ToolCall[]
     toolResults?: ToolResult[]
     timestamp: string
+    responseError?: string
 }
 
 interface ToolCall {

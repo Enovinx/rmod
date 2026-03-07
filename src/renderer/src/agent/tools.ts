@@ -96,6 +96,41 @@ export function getTools() {
                 }
             }
         },
+
+        {
+            type: 'function',
+            function: {
+                name: 'quiz',
+                description: 'Draft a short clarification quiz to confirm requirements with the user before implementation.',
+                parameters: {
+                    type: 'object',
+                    properties: {
+                        title: {
+                            type: 'string',
+                            description: 'A concise title for what you are confirming'
+                        },
+                        questions: {
+                            type: 'array',
+                            description: 'Short multiple-choice or short-answer questions to ask the user',
+                            items: {
+                                type: 'object',
+                                properties: {
+                                    id: { type: 'string' },
+                                    prompt: { type: 'string' },
+                                    options: {
+                                        type: 'array',
+                                        items: { type: 'string' }
+                                    }
+                                },
+                                required: ['id', 'prompt']
+                            }
+                        }
+                    },
+                    required: ['title', 'questions']
+                }
+            }
+        },
+
         {
             type: 'function',
             function: {
@@ -284,6 +319,19 @@ async function executeFilesystemToolCall(
                         taskId: args.taskId,
                         status: args.status,
                         note: args.note
+                    }
+                }
+            }
+
+
+            case 'quiz': {
+                const questions = Array.isArray(args.questions) ? args.questions : []
+                return {
+                    success: true,
+                    data: {
+                        message: 'Quiz prepared. Present these questions to the user and wait for their answers before continuing.',
+                        title: args.title,
+                        questions
                     }
                 }
             }

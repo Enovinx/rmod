@@ -26,6 +26,7 @@ export interface Message {
     toolResults?: ToolResult[]
     timestamp: string
     isStreaming?: boolean
+    responseError?: string
 }
 
 export interface ToolCall {

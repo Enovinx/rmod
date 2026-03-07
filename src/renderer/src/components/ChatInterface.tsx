@@ -4,6 +4,7 @@ import { runAgent } from '../agent'
 import MessageBubble from './MessageBubble'
 import SuperAgentPanel from './SuperAgentPanel'
 import CheckpointViewer from './CheckpointViewer'
+import ActionDialog from './ActionDialog'
 import './ChatInterface.css'
 
 const FILE_MENTION_REGEX = /(^|\s)@([A-Za-z0-9._/-]+)/g
@@ -81,6 +82,7 @@ export default function ChatInterface({
     const [superAgentMode, setSuperAgentMode] = useState(false)
     const [showCheckpoints, setShowCheckpoints] = useState(false)
     const [streamingContent, setStreamingContent] = useState('')
+    const [responseError, setResponseError] = useState('')
     const [abortController, setAbortController] = useState<AbortController | null>(null)
     const [pendingPlan, setPendingPlan] = useState<string | null>(null)
     const [planDraft, setPlanDraft] = useState('')
@@ -92,6 +94,9 @@ export default function ChatInterface({
     const [selectedMentionIndex, setSelectedMentionIndex] = useState(0)
 
     const messagesEndRef = useRef<HTMLDivElement>(null)
+    const streamingContentRef = useRef('')
+    const userStoppedRef = useRef(false)
+    const [showStopDialog, setShowStopDialog] = useState(false)
     const textareaRef = useRef<HTMLTextAreaElement>(null)
     const highlightRef = useRef<HTMLDivElement>(null)
 
@@ -236,7 +241,10 @@ export default function ChatInterface({
         setIsRunning(true)
         setCurrentAction('Starting...')
         setStreamingContent('')
-        setSuperAgentPlan(null)
+        streamingContentRef.current = ''
+        setResponseError('')
+        userStoppedRef.current = false
+        if (!superAgentMode) setSuperAgentPlan(null)
         const controller = new AbortController()
         setAbortController(controller)
 
@@ -262,7 +270,10 @@ export default function ChatInterface({
                 settings,
                 superAgentMode,
                 onStatusUpdate: setCurrentAction,
-                onStreamUpdate: setStreamingContent,
+                onStreamUpdate: (content) => {
+                    streamingContentRef.current = content
+                    setStreamingContent(content)
+                },
                 signal: controller.signal,
                 onPlanReady: async (planText) => {
                     setPendingPlan(planText)
@@ -296,18 +307,31 @@ export default function ChatInterface({
         } catch (error) {
             console.error('Agent error:', error)
             const message = error instanceof Error ? error.message : 'Unknown error occurred'
-            await window.api.chats.addMessage(chat.id, {
-                role: 'assistant',
-                content: message === 'Request stopped by user.'
-                    ? 'Stopped. I paused the response as requested.'
-                    : `Error: ${message}`
-            })
+            const partialContent = streamingContentRef.current.trim()
+            const wasUserStop = userStoppedRef.current && message === 'Request stopped by user.'
+
+            if (partialContent) {
+                await window.api.chats.addMessage(chat.id, {
+                    role: 'assistant',
+                    content: partialContent,
+                    responseError: wasUserStop ? 'Paused by user.' : message
+                })
+            } else if (!wasUserStop) {
+                await window.api.chats.addMessage(chat.id, {
+                    role: 'assistant',
+                    content: `Error: ${message}`,
+                    responseError: message
+                })
+            }
+
+            setResponseError(wasUserStop ? 'Paused by user.' : (message || 'Unknown error occurred'))
             const errorChat = await window.api.chats.get(chat.id)
             if (errorChat) onChatUpdate(errorChat)
         } finally {
             setIsRunning(false)
             setCurrentAction('')
             setStreamingContent('')
+            streamingContentRef.current = ''
             setAbortController(null)
             setPendingPlan(null)
             setPlanResolver(null)
@@ -316,11 +340,17 @@ export default function ChatInterface({
     }
 
     const handleStop = () => {
+        setShowStopDialog(true)
+    }
+
+    const handlePauseRun = () => {
+        userStoppedRef.current = true
         abortController?.abort()
         planResolver?.({ action: 'cancel' })
         setPendingPlan(null)
         setPlanResolver(null)
-        setCurrentAction('Stopping...')
+        setCurrentAction('Paused. Ask me to continue when ready.')
+        setShowStopDialog(false)
     }
 
     const handleProceedWithPlan = () => {
@@ -455,7 +485,8 @@ export default function ChatInterface({
                 content: hasDistinctBoundaryText ? `${firstText}\n\n${lastText}` : (firstText || ''),
                 reasoning: assistantRun.map(item => item.reasoning?.trim()).filter(Boolean).join('\n\n') || undefined,
                 toolCalls: assistantRun.flatMap(item => item.toolCalls || []),
-                toolResults: assistantRun.flatMap(item => item.toolResults || [])
+                toolResults: assistantRun.flatMap(item => item.toolResults || []),
+                responseError: assistantRun.map(item => item.responseError?.trim()).filter(Boolean).pop()
             }
 
             merged.push(mergedAssistant)
@@ -477,7 +508,8 @@ export default function ChatInterface({
             messagesWithStreaming[messagesWithStreaming.length - 1] = {
                 ...lastMessage,
                 content: streamingContent,
-                isStreaming: true
+                isStreaming: true,
+                responseError: responseError || undefined
             }
             return messagesWithStreaming
         }
@@ -487,11 +519,12 @@ export default function ChatInterface({
             role: 'assistant',
             content: streamingContent,
             timestamp: new Date().toISOString(),
-            isStreaming: true
+            isStreaming: true,
+            responseError: responseError || undefined
         })
 
         return messagesWithStreaming
-    }, [displayMessages, isRunning, pendingPlan, streamingContent])
+    }, [displayMessages, isRunning, pendingPlan, responseError, streamingContent])
 
     const handleSuggestionClick = (text: string) => {
         setInput(text)
@@ -664,6 +697,18 @@ export default function ChatInterface({
                         if (freshChat) onChatUpdate(freshChat)
                         setShowCheckpoints(false)
                     }}
+                />
+            )}
+
+
+            {showStopDialog && (
+                <ActionDialog
+                    title="Pause current response?"
+                    message="This pauses the current generation and keeps your super agent task state. Ask the agent to quit the task if you want to stop it permanently."
+                    confirmLabel="Pause"
+                    cancelLabel="Keep Running"
+                    onConfirm={handlePauseRun}
+                    onCancel={() => setShowStopDialog(false)}
                 />
             )}
 
