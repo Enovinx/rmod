@@ -18,6 +18,8 @@ export default function SettingsPanel({ settings, onChange, onClose }: SettingsP
     const [showWipeConfirm, setShowWipeConfirm] = useState(false)
     const [showThemeDropdown, setShowThemeDropdown] = useState(false)
     const [ollamaModels, setOllamaModels] = useState<{ id: string; name: string; isCloud: boolean }[]>([])
+    const [manualOllamaModels, setManualOllamaModels] = useState<string[]>([])
+    const [manualOllamaModelInput, setManualOllamaModelInput] = useState('')
     const [loadingOllama, setLoadingOllama] = useState(false)
     const [ollamaError, setOllamaError] = useState('')
     const themeDropdownRef = useRef<HTMLDivElement>(null)
@@ -51,7 +53,8 @@ export default function SettingsPanel({ settings, onChange, onClose }: SettingsP
 
             setOllamaModels(models)
 
-            if (models.length > 0 && !models.find(m => m.id === settings.activeModelPreset)) {
+            const hasManualActiveModel = manualOllamaModels.includes(settings.activeModelPreset)
+            if (models.length > 0 && !models.find(m => m.id === settings.activeModelPreset) && !hasManualActiveModel) {
                 onChange({ activeModelPreset: models[0].id })
             }
         } catch (err) {
@@ -117,7 +120,7 @@ export default function SettingsPanel({ settings, onChange, onClose }: SettingsP
             }, 500)
             return () => clearTimeout(timer)
         }
-    }, [settings.provider, settings.ollamaUrl])
+    }, [settings.provider, settings.ollamaUrl, manualOllamaModels])
 
     const handlePresetChange = (presetId: string) => {
         onChange({ activeModelPreset: presetId })
@@ -126,6 +129,15 @@ export default function SettingsPanel({ settings, onChange, onClose }: SettingsP
     const handleCheckpointRetentionChange = (days: number) => {
         if (!Number.isFinite(days)) return
         onChange({ checkpointRetentionDays: Math.min(365, Math.max(1, Math.floor(days))) })
+    }
+
+    const handleManualOllamaModelAdd = () => {
+        const modelId = manualOllamaModelInput.trim()
+        if (!modelId) return
+
+        setManualOllamaModels(prev => prev.includes(modelId) ? prev : [...prev, modelId])
+        onChange({ activeModelPreset: modelId })
+        setManualOllamaModelInput('')
     }
 
     const handleAddPreset = () => {
@@ -171,6 +183,17 @@ export default function SettingsPanel({ settings, onChange, onClose }: SettingsP
         { id: 'openai/gpt-4o', name: 'GPT-4o' },
         { id: 'google/gemini-pro-1.5', name: 'Gemini Pro 1.5' },
         { id: 'meta-llama/llama-3.1-70b-instruct', name: 'Llama 3.1 70B' }
+    ]
+
+    const displayedOllamaModels = [
+        ...ollamaModels,
+        ...manualOllamaModels
+            .filter(modelId => !ollamaModels.some(model => model.id === modelId))
+            .map(modelId => ({
+                id: modelId,
+                name: modelId,
+                isCloud: true
+            }))
     ]
 
     return (
@@ -386,8 +409,31 @@ export default function SettingsPanel({ settings, onChange, onClose }: SettingsP
                                 <p className="text-secondary text-sm mb-2">No models found. Make sure Ollama is running and you are signed in if you want to use cloud models.</p>
                             )}
 
+                            <div className="manual-ollama-model-row mb-2">
+                                <input
+                                    type="text"
+                                    className="input"
+                                    value={manualOllamaModelInput}
+                                    onChange={e => setManualOllamaModelInput(e.target.value)}
+                                    onKeyDown={e => {
+                                        if (e.key === 'Enter') {
+                                            e.preventDefault()
+                                            handleManualOllamaModelAdd()
+                                        }
+                                    }}
+                                    placeholder="Add cloud model slug (for example, my-org/my-model)"
+                                />
+                                <button
+                                    className="btn btn-sm"
+                                    onClick={handleManualOllamaModelAdd}
+                                    disabled={!manualOllamaModelInput.trim()}
+                                >
+                                    Add
+                                </button>
+                            </div>
+
                             <div className="presets-list">
-                                {ollamaModels.map(model => (
+                                {displayedOllamaModels.map(model => (
                                     <div
                                         key={model.id}
                                         className={`preset-item ${model.id === settings.activeModelPreset ? 'active' : ''}`}
