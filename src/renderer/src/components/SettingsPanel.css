@@ -158,6 +158,16 @@
     gap: var(--spacing-sm);
 }
 
+.manual-ollama-model-row {
+    display: flex;
+    gap: var(--spacing-sm);
+}
+
+.manual-ollama-model-row .input {
+    flex: 1;
+    font-family: var(--font-mono);
+}
+
 .preset-item {
     display: flex;
     align-items: center;
