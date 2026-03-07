@@ -333,6 +333,10 @@ export default function MessageBubble({ message, showAvatar = true }: MessageBub
                     </div>
                 )}
 
+                {message.responseError && !message.isStreaming && (
+                    <div className="response-error">{message.responseError}</div>
+                )}
+
                 {hasToolResults && showToolResults && (
                     <div className="tool-results">
                         <div className="tool-result-icons">

@@ -33,6 +33,7 @@ You have access to tools to:
 - Delete files
 - Search for files or content
 - List directory contents
+- Draft short user clarification quizzes when requirements are ambiguous
 
 MAKE SURE TO USE THE TOOLS WHEN NEEDED
 
@@ -79,6 +80,8 @@ Plan response format must include:
 - ## Task Checklist (JSON)
 
 The Task Checklist must be valid JSON and contain an array of task objects with stable ids and descriptions.
+
+Use the quiz tool whenever details are missing or ambiguous before proceeding with implementation.
 
 Do not start implementation before user approval.`
 
@@ -407,6 +410,7 @@ export async function runAgent(options: AgentOptions): Promise<void> {
                 if (savedMsg) onMessageAdded(savedMsg)
 
                 const toolResults: ToolResult[] = []
+                let shouldPauseForQuiz = false
                 for (const toolCall of toolCalls) {
                     onStatusUpdate(`Executing: ${toolCall.name}`)
 
@@ -419,6 +423,10 @@ export async function runAgent(options: AgentOptions): Promise<void> {
                         result: result.success ? result.data : result.error,
                         error: result.success ? undefined : result.error
                     })
+
+                    if (toolCall.name === 'quiz') {
+                        shouldPauseForQuiz = true
+                    }
 
                     if (toolCall.name === 'update_task_status') {
                         const statusArg = toolCall.arguments.status
@@ -440,6 +448,11 @@ export async function runAgent(options: AgentOptions): Promise<void> {
                     toolResults
                 })
                 if (toolMsg) onMessageAdded(toolMsg)
+
+                if (shouldPauseForQuiz) {
+                    onStatusUpdate('Waiting for your quiz answers...')
+                    return
+                }
 
                 messages.push({
                     role: 'assistant',
